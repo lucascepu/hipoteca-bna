@@ -155,7 +155,7 @@ td:first-child { text-align: left; }
   <header>
     <div>
       <h1>Tablero Hipoteca BNA</h1>
-      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.2</strong></div>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.3</strong></div>
     </div>
     <div style="font-size:.72rem;color:var(--muted);text-align:right">
       Capital original<br>
@@ -255,7 +255,7 @@ td:first-child { text-align: left; }
     <div class="config">
       <div class="field-grp">
         <label>Monto a precancelar (ARS)</label>
-        <input class="num-input" type="number" id="canc-monto" placeholder="Ej: 5.000.000" step="100000" min="0" style="width:200px" oninput="calcCancelacion()">
+        <input class="num-input" type="text" inputmode="numeric" id="canc-monto" placeholder="Ej: 5.000.000" style="width:200px" oninput="formatCancMonto(this);calcCancelacion()">
       </div>
       <div class="field-grp">
         <label>Junto con cuota nº</label>
@@ -429,8 +429,13 @@ function setTab(tab, btn) {
 }
 
 // ─── Cancelación anticipada ───────────────────────────────────────────────────
+function formatCancMonto(el) {
+  const digits = el.value.replace(/\D/g, '');
+  el.value = digits ? Number(digits).toLocaleString('es-AR') : '';
+}
+
 function calcCancelacion() {
-  const montoARS   = parseFloat(document.getElementById('canc-monto').value) || 0;
+  const montoARS   = parseFloat(document.getElementById('canc-monto').value.replace(/\./g,'').replace(',','.')) || 0;
   const desdeCuota = parseInt(document.getElementById('canc-desde').value) || 1;
   const uvaActual  = parseFloat(document.getElementById('uva-actual').value) || 2130;
 

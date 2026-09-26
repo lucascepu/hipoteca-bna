@@ -155,7 +155,7 @@ td:first-child { text-align: left; }
   <header>
     <div>
       <h1>Tablero Hipoteca BNA</h1>
-      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.2.0</strong></div>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.0</strong></div>
     </div>
     <div style="font-size:.72rem;color:var(--muted);text-align:right">
       Capital original<br>
@@ -245,6 +245,11 @@ td:first-child { text-align: left; }
       <div style="font-size:.75rem;color:var(--txt3);margin-bottom:1rem">Independiente del valor en pesos de la UVA y de la inflación proyectada. Sistema francés · 0,50% mensual.</div>
       <div id="uva-chart" style="width:100%;height:280px"></div>
     </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem">
+      <div style="font-size:.68rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem">Composición de cada cuota en UVA</div>
+      <div id="uva-comp-note" style="font-size:.75rem;color:var(--txt3);margin-bottom:1rem"></div>
+      <div id="uva-comp-chart" style="width:100%;height:280px"></div>
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th style="text-align:left">Cuota</th><th>Saldo UVA</th><th>Capital amortizado</th><th>% amortizado</th><th>Interés UVA</th><th>Amortización UVA</th></tr></thead>
@@ -263,7 +268,7 @@ td:first-child { text-align: left; }
         <input class="num-input" type="number" id="canc-monto" placeholder="Ej: 5.000.000" step="100000" min="0" style="width:200px" oninput="calcCancelacion()">
       </div>
       <div class="field-grp">
-        <label>Desde cuota nº</label>
+        <label>Junto con cuota nº</label>
         <input class="num-input" type="number" id="canc-desde" value="1" step="1" min="1" max="360" style="width:90px" oninput="calcCancelacion()">
       </div>
       <div class="field-grp" style="justify-content:flex-end">
@@ -469,7 +474,7 @@ function calcCancelacion() {
   const capInicialUVAs = CAPITAL_UVA;
   const cuotaBaseUVAs  = capInicialUVAs * TEM / (1 - Math.pow(1 + TEM, -MESES));
 
-  // ── Saldo en UVAs inmediatamente antes de la cuota elegida ──
+  // ── Saldo en UVAs inmediatamente antes del servicio elegido. La precancelación se modela como extraordinaria en esa fecha; la cuota ordinaria se informa/paga por separado. ──
   let saldoAntesUVAs = capInicialUVAs;
   for (let i = 0; i < cuotaIdx; i++) {
     const amortUVAs = cuotaBaseUVAs - saldoAntesUVAs * TEM;
@@ -542,7 +547,7 @@ function calcCancelacion() {
     { l:'Capital a precancelar',     v: fmt(capitalEfectivoARS),   s: fmtUVA(uvasACancelar) + ' al valor UVA proyectado de la cuota ' + desdeCuota },
     { l:'Saldo antes / después',     v: fmtUVA(saldoAntesUVAs),  s: '→ ' + (cancelacionTotal ? 'cancelación total' : fmtUVA(nuevoSaldoUVAs)) },
     { l:'Comisión (' + (hayComision ? '4%' : '0%') + ')', v: hayComision ? fmt(comision) : '$0', s: hayComision ? 'primeros 7,5 años' : 'después de 7,5 años' },
-    { l:'Total a desembolsar',       v: fmt(totalPagar),          s: 'capital + comisión' },
+    { l:'Total a desembolsar',       v: fmt(totalPagar),          s: 'extraordinario: capital + comisión; no incluye cuota ordinaria' },
     { l:'Cuotas eliminadas',         v: nElim,                    s: cancelacionTotal ? 'cancelación total' : `quedan ${cuotasConNuevoSaldo} cuota${cuotasConNuevoSaldo!==1?'s':''}` },
     { l:'Ahorro en intereses',       v: fmtUVA(ahorroUVAs),       s: fmt(ahorroARSHoy) + ' en ARS de hoy' },
     { l:'Nueva fecha de fin',        v: nuevaFechaFin ? fmtDate(nuevaFechaFin) : '—', s: cancelacionTotal ? 'préstamo cancelado' : `cuota nº ${cuotasTotales}` },
@@ -586,6 +591,19 @@ function renderUVA() {
   const grid=[0,20000,40000,60000,80000].map(v=>`<line x1="${pL}" y1="${y(v)}" x2="${W-pR}" y2="${y(v)}" stroke="rgba(255,255,255,.08)"/><text x="${pL-8}" y="${y(v)+4}" text-anchor="end" fill="#6e7f8d" font-size="11">${Math.round(v/1000)}k</text>`).join('');
   const xt=[0,60,120,180,240,300,360].map(v=>`<text x="${x(v)}" y="${H-8}" text-anchor="middle" fill="#6e7f8d" font-size="11">${v}</text>`).join('');
   document.getElementById('uva-chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Caída del saldo de deuda en UVA por cuota">${grid}<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>${xt}<text x="${W/2}" y="${H}" text-anchor="middle" fill="#6e7f8d" font-size="11">número de cuota</text></svg>`;
+
+  // Composición de la cuota: interés decreciente + amortización creciente.
+  const maxComp = cuotaUVA;
+  const yc=v=>pT+(1-v/maxComp)*(H-pT-pB);
+  const pathInt=schedule.map((r,i)=>(i?'L':'M')+x(r.mes).toFixed(1)+','+yc(r.intUVAs).toFixed(1)).join(' ');
+  const pathAm=schedule.map((r,i)=>(i?'L':'M')+x(r.mes).toFixed(1)+','+yc(r.amortUVAs).toFixed(1)).join(' ');
+  const cross=schedule.find(r=>r.amortUVAs>=r.intUVAs);
+  const compGrid=[0,.25,.5,.75,1].map(q=>{const v=maxComp*q;return `<line x1="${pL}" y1="${yc(v)}" x2="${W-pR}" y2="${yc(v)}" stroke="rgba(255,255,255,.08)"/><text x="${pL-8}" y="${yc(v)+4}" text-anchor="end" fill="#6e7f8d" font-size="11">${fmtU(v)}</text>`}).join('');
+  const crossMark=cross?`<line x1="${x(cross.mes)}" y1="${pT}" x2="${x(cross.mes)}" y2="${H-pB}" stroke="rgba(255,255,255,.28)" stroke-dasharray="4 4"/><text x="${x(cross.mes)+6}" y="${pT+13}" fill="#a8b3bd" font-size="11">cruce cuota ${cross.mes}</text>`:'';
+  document.getElementById('uva-comp-chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Composición de la cuota en interés y amortización UVA">${compGrid}<path d="${pathInt}" fill="none" stroke="var(--amber)" stroke-width="3"/><path d="${pathAm}" fill="none" stroke="var(--green)" stroke-width="3"/>${crossMark}${xt}<text x="${pL+8}" y="${pT+14}" fill="var(--amber)" font-size="11">Interés UVA</text><text x="${pL+8}" y="${pT+30}" fill="var(--green)" font-size="11">Amortización UVA</text></svg>`;
+  document.getElementById('uva-comp-note').textContent = cross
+    ? `Interés ↓ · Amortización ↑ · La amortización supera al interés desde la cuota ${cross.mes}.`
+    : 'Interés ↓ · Amortización ↑';
 
   const milestones=[0,12,24,36,60,90,120,180,240,300,360];
   document.getElementById('uva-body').innerHTML=milestones.map(n=>{

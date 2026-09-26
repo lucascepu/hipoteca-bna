@@ -289,10 +289,11 @@ td:first-child { text-align: left; }
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CAPITAL      = 172124984.96;
+const CAPITAL_UVA  = 80670.86;       // capital contractual fijo expresado en UVA
 const TC_CONTRATO  = 1545;           // TC ARS/USD al cierre del contrato (fijo)
 const SPREAD    = 0.06;
 const MESES     = 360;
-const TEM       = Math.pow(1 + SPREAD, 1/12) - 1;
+const TEM       = 0.005;             // 6% TNA = 0,50% mensual según contrato
 const PRIMERA   = new Date(2026, 10, 10); // 10/11/2026
 const STORAGE_PAID   = 'hipoteca_cuotas_v1_paid';
 const STORAGE_SEGS   = 'hipoteca_cuotas_v1_segs';
@@ -372,19 +373,18 @@ let uvasMap  = loadMap(STORAGE_UVAS);
 // ─── Schedule builder ─────────────────────────────────────────────────────────
 let schedule = [];
 function buildSchedule(infMensual, uvaActual) {
-  const cuotaBaseUVAs = CAPITAL / uvaActual * TEM / (1 - Math.pow(1+TEM, -MESES));
-  let capUVAs = CAPITAL / uvaActual;
+  const cuotaBaseUVAs = CAPITAL_UVA * TEM / (1 - Math.pow(1+TEM, -MESES));
+  let capUVAs = CAPITAL_UVA;
   let uvaIdx  = 1.0;
   schedule = [];
   for (let i = 0; i < MESES; i++) {
     if (i > 0) uvaIdx *= (1 + infMensual);
-    const uvaHoy    = uvaActual * uvaIdx;
-    // Override UVA real if user set it
-    const uvaReal   = uvasMap.has(i) ? uvasMap.get(i) : uvaHoy;
-    const intUVAs   = capUVAs * TEM;
-    const amortUVAs = cuotaBaseUVAs - intUVAs;
-    capUVAs        -= amortUVAs;
-    if (i > 0) capUVAs *= (1 + infMensual);
+    const uvaHoy  = uvaActual * uvaIdx;
+    const uvaReal = uvasMap.has(i) ? uvasMap.get(i) : uvaHoy;
+    const saldoAntesUVAs = capUVAs;
+    const intUVAs   = saldoAntesUVAs * TEM;
+    const amortUVAs = Math.min(cuotaBaseUVAs - intUVAs, saldoAntesUVAs);
+    capUVAs         = Math.max(saldoAntesUVAs - amortUVAs, 0);
     const cuotaARS  = cuotaBaseUVAs * uvaReal;
     const intARS    = intUVAs * uvaReal;
     const amortARS  = amortUVAs * uvaReal;
@@ -394,15 +394,10 @@ function buildSchedule(infMensual, uvaActual) {
     const esFer     = debito.getTime() !== d10.getTime();
     const seguro    = segsMap.has(i) ? segsMap.get(i) : (parseInt(document.getElementById('seguro-global')?.value||0)||0);
     schedule.push({
-      idx: i,
-      mes: i+1,
-      d10, debito, esFer,
-      uvaHoy, uvaReal,
-      cuotaBaseUVAs,
-      cuotaARS, intARS, amortARS, capARS,
-      seguro,
-      total: cuotaARS + seguro,
-      paid: paidSet.has(i),
+      idx:i, mes:i+1, d10, debito, esFer, uvaHoy, uvaReal,
+      saldoAntesUVAs, intUVAs, amortUVAs, capUVAs, cuotaBaseUVAs,
+      cuotaARS, intARS, amortARS, capARS, seguro,
+      total: cuotaARS + seguro, paid: paidSet.has(i),
     });
   }
 }
@@ -458,11 +453,8 @@ function calcCancelacion() {
     badge.style.color = 'var(--green)';
   }
 
-  const comision   = hayComision ? montoARS * 0.04 : 0;
-  const totalPagar = montoARS + comision;
-
   // ── Cuota base en UVAs (constante, sistema francés) ──
-  const capInicialUVAs = CAPITAL / uvaActual;          // 80.670,86 UVAs
+  const capInicialUVAs = CAPITAL_UVA;
   const cuotaBaseUVAs  = capInicialUVAs * TEM / (1 - Math.pow(1 + TEM, -MESES));
 
   // ── Saldo en UVAs inmediatamente antes de la cuota elegida ──
@@ -479,6 +471,9 @@ function calcCancelacion() {
   let uvasACancelar = montoARS / uvaEnCuota;
   const cancelacionTotal = uvasACancelar >= saldoAntesUVAs - 1e-6;
   if (cancelacionTotal) uvasACancelar = saldoAntesUVAs;
+  const capitalEfectivoARS = uvasACancelar * uvaEnCuota;
+  const comision   = hayComision ? capitalEfectivoARS * 0.04 : 0;
+  const totalPagar = capitalEfectivoARS + comision;
 
   // ── Nuevo saldo tras la precancelación ──
   const nuevoSaldoUVAs = Math.max(saldoAntesUVAs - uvasACancelar, 0);
@@ -532,7 +527,7 @@ function calcCancelacion() {
   const fmtUVA = n => fmtU(n) + ' UVA';
 
   document.getElementById('canc-stats').innerHTML = [
-    { l:'Capital a precancelar',     v: fmt(montoARS),            s: fmtUVA(uvasACancelar) + ' al TC de la cuota ' + desdeCuota },
+    { l:'Capital a precancelar',     v: fmt(capitalEfectivoARS),   s: fmtUVA(uvasACancelar) + ' al valor UVA proyectado de la cuota ' + desdeCuota },
     { l:'Saldo antes / después',     v: fmtUVA(saldoAntesUVAs),  s: '→ ' + (cancelacionTotal ? 'cancelación total' : fmtUVA(nuevoSaldoUVAs)) },
     { l:'Comisión (' + (hayComision ? '4%' : '0%') + ')', v: hayComision ? fmt(comision) : '$0', s: hayComision ? 'primeros 7,5 años' : 'después de 7,5 años' },
     { l:'Total a desembolsar',       v: fmt(totalPagar),          s: 'capital + comisión' },
@@ -574,17 +569,22 @@ function renderStats() {
   const lastRow   = schedule[MESES-1];
   const cuota0    = schedule[0];
   const pct       = paidCount / MESES * 100;
+  const saldoUVAs = nextRow ? nextRow.saldoAntesUVAs : 0;
+  const uvaSaldo = nextRow ? nextRow.uvaReal : (lastRow?.uvaReal || (parseFloat(document.getElementById('uva-actual').value)||2130));
+  const saldoARS = saldoUVAs * uvaSaldo;
+  const amortizadoUVAs = Math.max(CAPITAL_UVA - saldoUVAs, 0);
+  const pctCapital = CAPITAL_UVA ? amortizadoUVAs / CAPITAL_UVA * 100 : 100;
 
   document.getElementById('progress-fill').style.width = pct.toFixed(1) + '%';
   document.getElementById('progress-pct').textContent  = pct.toFixed(1) + '%';
 
   document.getElementById('stats').innerHTML = [
-    { l:'Cuota inicial (UVA)',  v: fmt(cuota0.cuotaARS),           s:`${fmtU(cuota0.cuotaBaseUVAs)} UVAs` },
-    { l:'Pagadas / Total',      v: `${paidCount} / ${MESES}`,      s:`${MESES-paidCount} pendientes` },
-    { l:'Saldo estimado',       v: nextRow ? fmt(nextRow.capARS) : '—', s:'capital restante en ARS' },
-    { l:'Próxima cuota',        v: nextRow ? fmt(nextRow.cuotaARS) : '¡Listo!', s: nextRow ? fmtDate(nextRow.debito) : 'Préstamo cancelado' },
-    { l:'Fin del préstamo',     v: fmtDate(new Date(lastRow.debito)), s:'cuota nº 360' },
-    { l:'UVA actual usada',     v: fmtU(parseFloat(document.getElementById('uva-actual').value)||2130), s:'$/UVA' },
+    { l:'Deuda actual (UVA)', v: fmtU(saldoUVAs) + ' UVA', s:`${fmtU(amortizadoUVAs)} UVA amortizadas · ${pctCapital.toFixed(2)}%` },
+    { l:'Deuda actual (ARS)', v: saldoUVAs > 0 ? fmt(saldoARS) : '$0', s:`a ${fmtU(uvaSaldo)} $/UVA` },
+    { l:'Pagadas / Total', v:`${paidCount} / ${MESES}`, s:`${MESES-paidCount} pendientes · ${pct.toFixed(1)}% del plazo` },
+    { l:'Próxima cuota', v:nextRow ? fmt(nextRow.cuotaARS) : '¡Listo!', s:nextRow ? `${fmtU(nextRow.cuotaBaseUVAs)} UVA · ${fmtDate(nextRow.debito)}` : 'Préstamo cancelado' },
+    { l:'Fin del préstamo', v:fmtDate(new Date(lastRow.debito)), s:'cuota nº 360' },
+    { l:'UVA actual usada', v:fmtU(parseFloat(document.getElementById('uva-actual').value)||2130), s:'$/UVA' },
   ].map(m=>`<div class="stat"><div class="sl">${m.l}</div><div class="sv">${m.v}</div><div class="ss">${m.s}</div></div>`).join('');
 }
 
@@ -659,9 +659,9 @@ function openDetail(idx) {
     <div class="detail-row"><span class="dk">Cuota en ARS</span><span class="dv n-cell" style="color:var(--accent)">${fmt(r.cuotaARS)}</span></div>
 
     <div class="detail-section">Composición</div>
-    <div class="detail-row"><span class="dk">Interés</span><span class="dv n-cell">${fmt(r.intARS)}</span></div>
-    <div class="detail-row"><span class="dk">Amortización capital</span><span class="dv n-cell">${fmt(r.amortARS)}</span></div>
-    <div class="detail-row"><span class="dk">Capital restante</span><span class="dv n-cell">${fmt(r.capARS)}</span></div>
+    <div class="detail-row"><span class="dk">Interés</span><span class="dv n-cell">${fmtU(r.intUVAs)} UVA · ${fmt(r.intARS)}</span></div>
+    <div class="detail-row"><span class="dk">Amortización capital</span><span class="dv n-cell">${fmtU(r.amortUVAs)} UVA · ${fmt(r.amortARS)}</span></div>
+    <div class="detail-row"><span class="dk">Capital restante</span><span class="dv n-cell">${fmtU(r.capUVAs)} UVA · ${fmt(r.capARS)}</span></div>
 
     <div class="detail-section">Seguro + Total</div>
     <div class="detail-row"><span class="dk">Seguro este mes</span><span class="dv n-cell" style="color:var(--warn)">${r.seguro > 0 ? fmt(r.seguro) : '—'}</span></div>

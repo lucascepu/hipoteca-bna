@@ -155,7 +155,7 @@ td:first-child { text-align: left; }
   <header>
     <div>
       <h1>Tablero Hipoteca BNA</h1>
-      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026</div>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.2.0</strong></div>
     </div>
     <div style="font-size:.72rem;color:var(--muted);text-align:right">
       Capital original<br>
@@ -181,13 +181,6 @@ td:first-child { text-align: left; }
       <label>Seguro mensual (ARS)</label>
       <input class="num-input" type="number" id="seguro-global" value="0" step="1000" min="0" placeholder="0">
     </div>
-    <div class="field-grp">
-      <label>TC hoy — SIOPEL <span id="tc-status" style="font-weight:400;color:var(--txt3);font-size:.65rem"></span></label>
-      <div style="display:flex;align-items:center;gap:.5rem">
-        <input class="num-input" type="number" id="tc-usd" value="1545" step="1" min="1" placeholder="TC actual">
-        <button onclick="fetchTC()" title="Actualizar" style="background:var(--surface2);border:1px solid var(--border);color:var(--blue);font-size:.8rem;padding:.35rem .7rem;border-radius:6px;cursor:pointer;line-height:1">↻</button>
-      </div>
-    </div>
     <div class="field-grp" style="margin-left:auto">
       <label>Reset pagadas</label>
       <button onclick="resetPaid()" style="background:var(--surface2);border:1px solid var(--border);color:var(--danger);font-size:.75rem;padding:.35rem .85rem;border-radius:6px;cursor:pointer">Borrar marcas</button>
@@ -210,6 +203,7 @@ td:first-child { text-align: left; }
   <div class="filters" style="border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:0;margin-bottom:0">
     <button class="filter-btn active" data-tab="cuotas" onclick="setTab('cuotas',this)">Cuotas</button>
     <button class="filter-btn" data-tab="cancelacion" onclick="setTab('cancelacion',this)">Cancelación anticipada</button>
+    <button class="filter-btn" data-tab="uva" onclick="setTab('uva',this)">Caída deuda UVA</button>
   </div>
 
   <!-- CUOTAS PANEL -->
@@ -242,6 +236,22 @@ td:first-child { text-align: left; }
     </table>
   </div>
   </div><!-- /panel-cuotas -->
+
+  <!-- UVA PANEL -->
+  <div id="panel-uva" style="display:none;flex-direction:column;gap:1rem">
+    <div class="stats" id="uva-stats"></div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem">
+      <div style="font-size:.68rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem">Caída contractual del saldo en UVA</div>
+      <div style="font-size:.75rem;color:var(--txt3);margin-bottom:1rem">Independiente del valor en pesos de la UVA y de la inflación proyectada. Sistema francés · 0,50% mensual.</div>
+      <div id="uva-chart" style="width:100%;height:280px"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="text-align:left">Cuota</th><th>Saldo UVA</th><th>Capital amortizado</th><th>% amortizado</th><th>Interés UVA</th><th>Amortización UVA</th></tr></thead>
+        <tbody id="uva-body"></tbody>
+      </table>
+    </div>
+  </div><!-- /panel-uva -->
 
   <!-- CANCELACIÓN PANEL -->
   <div id="panel-cancelacion" style="display:none;flex-direction:column;gap:1rem">
@@ -416,9 +426,11 @@ function monthName(d) {
 function setTab(tab, btn) {
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('panel-cuotas').style.display      = tab === 'cuotas'      ? ''     : 'none';
+  document.getElementById('panel-cuotas').style.display       = tab === 'cuotas' ? '' : 'none';
   document.getElementById('panel-cancelacion').style.display = tab === 'cancelacion' ? 'flex' : 'none';
+  document.getElementById('panel-uva').style.display          = tab === 'uva' ? 'flex' : 'none';
   if (tab === 'cancelacion') calcCancelacion();
+  if (tab === 'uva') renderUVA();
 }
 
 // ─── Cancelación anticipada ───────────────────────────────────────────────────
@@ -550,6 +562,37 @@ function calcCancelacion() {
     listEl.innerHTML = `Cuotas <strong style="color:var(--text)">${primerElim}</strong> a <strong style="color:var(--text)">${ultimaElim}</strong>`
       + (fPrim && fUlt ? ` (${fmtDate(fPrim)} → ${fmtDate(fUlt)})` : '');
   }
+}
+
+// ─── Evolución pura en UVA ───────────────────────────────────────────────────
+function renderUVA() {
+  if (!schedule.length) return;
+  const cuotaUVA = schedule[0].cuotaBaseUVAs;
+  const totalInteres = schedule.reduce((a,r) => a + r.intUVAs, 0);
+  const mitad = schedule[179];
+  const saldoMitad = mitad ? mitad.capUVAs : 0;
+  document.getElementById('uva-stats').innerHTML = [
+    {l:'Capital original',v:fmtU(CAPITAL_UVA)+' UVA',s:'base contractual'},
+    {l:'Cuota financiera',v:fmtU(cuotaUVA)+' UVA',s:'constante en UVA'},
+    {l:'Interés total',v:fmtU(totalInteres)+' UVA',s:'si se cumple todo el plazo'},
+    {l:'Saldo tras cuota 180',v:fmtU(saldoMitad)+' UVA',s:((1-saldoMitad/CAPITAL_UVA)*100).toFixed(2)+'% amortizado'}
+  ].map(m=>`<div class="stat"><div class="sl">${m.l}</div><div class="sv">${m.v}</div><div class="ss">${m.s}</div></div>`).join('');
+
+  const points = [{x:0,y:CAPITAL_UVA}, ...schedule.map(r=>({x:r.mes,y:r.capUVAs}))];
+  const W=1000,H=250,pL=58,pR=18,pT=18,pB=36;
+  const x=v=>pL+(v/MESES)*(W-pL-pR);
+  const y=v=>pT+(1-v/CAPITAL_UVA)*(H-pT-pB);
+  const path=points.map((p,i)=>(i?'L':'M')+x(p.x).toFixed(1)+','+y(p.y).toFixed(1)).join(' ');
+  const grid=[0,20000,40000,60000,80000].map(v=>`<line x1="${pL}" y1="${y(v)}" x2="${W-pR}" y2="${y(v)}" stroke="rgba(255,255,255,.08)"/><text x="${pL-8}" y="${y(v)+4}" text-anchor="end" fill="#6e7f8d" font-size="11">${Math.round(v/1000)}k</text>`).join('');
+  const xt=[0,60,120,180,240,300,360].map(v=>`<text x="${x(v)}" y="${H-8}" text-anchor="middle" fill="#6e7f8d" font-size="11">${v}</text>`).join('');
+  document.getElementById('uva-chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Caída del saldo de deuda en UVA por cuota">${grid}<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>${xt}<text x="${W/2}" y="${H}" text-anchor="middle" fill="#6e7f8d" font-size="11">número de cuota</text></svg>`;
+
+  const milestones=[0,12,24,36,60,90,120,180,240,300,360];
+  document.getElementById('uva-body').innerHTML=milestones.map(n=>{
+    if(n===0) return `<tr><td><span class="row-num">0</span></td><td>${fmtU(CAPITAL_UVA)}</td><td>0,00</td><td>0,00%</td><td>—</td><td>—</td></tr>`;
+    const r=schedule[n-1], amort=CAPITAL_UVA-r.capUVAs, pct=amort/CAPITAL_UVA*100;
+    return `<tr><td><span class="row-num">${n}</span></td><td>${fmtU(r.capUVAs)}</td><td>${fmtU(amort)}</td><td>${pct.toFixed(2).replace('.',',')}%</td><td>${fmtU(r.intUVAs)}</td><td>${fmtU(r.amortUVAs)}</td></tr>`;
+  }).join('');
 }
 
 // ─── Filter state ─────────────────────────────────────────────────────────────
@@ -729,8 +772,7 @@ function rebuild() {
   const uva     = parseFloat(document.getElementById('uva-actual').value) || 2130;
   document.getElementById('inf-val').textContent = (inf*100).toFixed(1).replace('.',',') + '%';
   // Persist config
-  const tc = parseFloat(document.getElementById('tc-usd').value) || 1200;
-  saveConfig({ inf: inf*100, uva, seguro: document.getElementById('seguro-global').value, tc });
+  saveConfig({ inf: inf*100, uva, seguro: document.getElementById('seguro-global').value });
   buildSchedule(inf, uva);
   // Apply paid set
   schedule.forEach(r => { r.paid = paidSet.has(r.idx); });
@@ -746,38 +788,10 @@ function renderUSD() {
   document.getElementById('header-usd-orig').textContent = fmtUSD(origUSD);
 }
 
-// ─── TC en vivo desde seguimiento-fx ─────────────────────────────────────────
-function fetchTC() {
-  const statusEl = document.getElementById('tc-status');
-  statusEl.textContent = 'actualizando…';
-  statusEl.style.color = 'var(--txt3)';
-  fetch('https://seguimiento-fx.vercel.app/api/dolar', {cache:'no-store'})
-    .then(r => r.json())
-    .then(data => {
-      const price = data?.mayorista?.price;
-      if (price && price > 0) {
-        document.getElementById('tc-usd').value = Math.round(price);
-        const ts = data?.mayorista?.timestamp;
-        const hora = ts ? new Date(ts*1000).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
-        statusEl.textContent = hora ? `en vivo · ${hora}` : 'en vivo';
-        statusEl.style.color = 'var(--green)';
-        rebuild();
-      } else {
-        statusEl.textContent = 'sin dato';
-        statusEl.style.color = 'var(--red)';
-      }
-    })
-    .catch(() => {
-      statusEl.textContent = 'error de conexión';
-      statusEl.style.color = 'var(--red)';
-    });
-}
-
 // ─── Event listeners ─────────────────────────────────────────────────────────
 document.getElementById('inf-slider').addEventListener('input', rebuild);
 document.getElementById('uva-actual').addEventListener('change', rebuild);
 document.getElementById('seguro-global').addEventListener('change', rebuild);
-document.getElementById('tc-usd').addEventListener('change', rebuild);
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (function init() {
@@ -785,10 +799,7 @@ document.getElementById('tc-usd').addEventListener('change', rebuild);
   if (cfg.inf)    { document.getElementById('inf-slider').value   = cfg.inf; }
   if (cfg.uva)    { document.getElementById('uva-actual').value   = cfg.uva; }
   if (cfg.seguro) { document.getElementById('seguro-global').value = cfg.seguro; }
-  if (cfg.tc)     { document.getElementById('tc-usd').value        = cfg.tc; }
   rebuild();
-  // Buscar TC en vivo al cargar
-  fetchTC();
 })();
 </script>
 </body>

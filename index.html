@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablero Hipoteca BNA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* fondos — igual a seguimiento-fx */
+  --bg:       #0d1117;
+  --surface:  #161b23;
+  --surface2: #1c2333;
+  --border:   rgba(255,255,255,.10);
+  --brd-hov:  rgba(255,255,255,.22);
+  /* texto */
+  --text:  #f0f6fc;
+  --muted: #adbac7;
+  --txt3:  #6e7f8d;
+  /* colores de datos */
+  --accent:  #E8914A;   /* naranja bloomberg */
+  --blue:    #78AEDE;
+  --green:   #3fb950;
+  --red:     #f85149;
+  --amber:   #F5C36B;
+  --teal:    #5DCAA5;
+  /* aliases internos */
+  --accent2: var(--teal);
+  --danger:  var(--red);
+  --warn:    var(--amber);
+  --paid-bg: rgba(63,185,80,.08);
+  --paid-dot: var(--green);
+  --feriado-bg: rgba(245,195,107,.06);
+  --feriado-dot: var(--amber);
+  --radius: 10px;
+  --mono: 'Inter', system-ui, sans-serif;
+  --sans: 'Inter', system-ui, sans-serif;
+  --font: 'Inter', system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font);
+       font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+       font-feature-settings: "tnum" 1; min-height: 100vh; }
+
+/* ─── Layout ─── */
+.app { display: flex; flex-direction: column; max-width: 1280px; margin: 0 auto; padding: 20px 28px 3rem; gap: 1.25rem; }
+header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,.07); }
+header h1 { font-size: 1rem; font-weight: 700; letter-spacing: -.01em; }
+header .sub { font-size: .72rem; color: var(--txt3); letter-spacing: .01em; }
+
+/* ─── Config panel ─── */
+.config { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: flex-end; }
+.field-grp { display: flex; flex-direction: column; gap: .3rem; }
+.field-grp label { font-size: .68rem; color: var(--txt3); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.field-grp .val { font-size: .95rem; color: var(--text); }
+.slider-wrap { display: flex; align-items: center; gap: .5rem; }
+.slider-wrap input[type=range] { width: 130px; accent-color: var(--accent); cursor: pointer; }
+.slider-wrap span { font-size: .85rem; color: var(--accent); min-width: 42px; font-weight: 600; }
+.num-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); font-size: .85rem; padding: .35rem .6rem; border-radius: 6px; width: 120px; outline: none; font-family: var(--font); }
+.num-input:focus { border-color: var(--accent); }
+
+/* ─── Stats bar ─── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem 1rem; transition: border-color .15s, background .15s; }
+.stat .sl { font-size: .68rem; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-bottom: .25rem; opacity: .85; }
+.stat .sv { font-size: 1.1rem; font-weight: 600; color: var(--text); line-height: 1; margin-bottom: .2rem; }
+.stat .ss { font-size: .68rem; color: var(--txt3); margin-top: .15rem; }
+
+/* ─── Progress bar ─── */
+.progress-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem 1rem; }
+.progress-label { display: flex; justify-content: space-between; margin-bottom: .5rem; }
+.progress-label span { font-size: .72rem; color: var(--txt3); }
+.progress-label strong { font-size: .8rem; color: var(--teal); font-weight: 600; }
+.progress-bar { height: 6px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent) 0%, var(--teal) 100%); border-radius: 3px; transition: width .4s ease; }
+
+/* ─── Filters ─── */
+.filters { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.filter-btn { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--muted); font-size: .75rem; padding: .3rem .85rem; cursor: pointer; font-family: var(--font); transition: all .15s; border-radius: 0; }
+.filter-btn:hover { color: var(--text); }
+.filter-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+.filter-btn.warn-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
+.search-count { margin-left: auto; font-size: .72rem; color: var(--txt3); }
+
+/* ─── Table ─── */
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+thead th { background: var(--surface2); color: var(--txt3); font-weight: 600; font-size: .67rem; text-transform: uppercase; letter-spacing: .08em; padding: .55rem .75rem; text-align: right; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
+thead th:first-child { text-align: left; }
+tbody tr { border-top: 1px solid rgba(255,255,255,.06); cursor: pointer; transition: background .1s; }
+tbody tr:hover { background: var(--surface2); }
+tbody tr.is-paid { background: var(--paid-bg); }
+tbody tr.is-paid:hover { background: rgba(63,185,80,.13); }
+tbody tr.is-feriado { background: var(--feriado-bg); }
+tbody tr.is-feriado:hover { background: rgba(245,195,107,.10); }
+tbody tr.is-paid.is-feriado { background: rgba(63,185,80,.08); }
+td { padding: .5rem .75rem; text-align: right; white-space: nowrap; }
+td:first-child { text-align: left; }
+.n-cell { }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; flex-shrink: 0; }
+.dot-paid { background: var(--green); }
+.dot-pend { background: rgba(255,255,255,.2); }
+.dot-fer { background: var(--amber); }
+.row-num { color: var(--txt3); font-size: .75rem; }
+.fecha-cell { font-size: .78rem; }
+.ars { }
+.badge-fer { display: inline-block; font-size: .6rem; background: rgba(245,195,107,.15); color: var(--amber); border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+.badge-paid { display: inline-block; font-size: .6rem; background: rgba(63,185,80,.13); color: var(--green); border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+.total-row { font-weight: 700; color: var(--accent); }
+.real-cuota { color: var(--teal); font-weight: 600; }
+
+/* ─── Detail panel ─── */
+.detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; display: none; }
+.detail-overlay.open { display: block; }
+.detail-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); background: var(--surface); border-left: 1px solid var(--border); z-index: 101; display: flex; flex-direction: column; transform: translateX(100%); transition: transform .25s ease; }
+.detail-panel.open { transform: none; }
+.detail-head { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,.07); }
+.detail-head h2 { font-size: .95rem; font-weight: 700; }
+.close-btn { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: .2rem .5rem; border-radius: 4px; }
+.close-btn:hover { color: var(--text); background: var(--surface2); }
+.detail-body { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.detail-row { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.detail-row .dk { font-size: .75rem; color: var(--txt3); }
+.detail-row .dv { font-size: .9rem; font-weight: 500; }
+.detail-divider { height: 1px; background: rgba(255,255,255,.07); }
+.detail-section { font-size: .67rem; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; padding-bottom: .25rem; border-bottom: 1px solid rgba(255,255,255,.07); opacity: .85; }
+.detail-input-row { display: flex; flex-direction: column; gap: .4rem; }
+.detail-input-row label { font-size: .72rem; color: var(--txt3); }
+.detail-note { font-size: .75rem; color: var(--muted); line-height: 1.5; }
+.feriado-box { background: rgba(245,195,107,.07); border: 1px solid rgba(245,195,107,.25); border-radius: 8px; padding: .75rem 1rem; font-size: .8rem; color: var(--amber); line-height: 1.5; }
+.mark-paid-btn { margin-top: .5rem; width: 100%; padding: .65rem; border-radius: 8px; border: none; font-family: var(--font); font-size: .85rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+.mark-paid-btn.unpaid { background: var(--accent); color: #fff; }
+.mark-paid-btn.unpaid:hover { opacity: .85; }
+.mark-paid-btn.paid-state { background: rgba(63,185,80,.12); color: var(--green); border: 1px solid var(--green); }
+.mark-paid-btn.paid-state:hover { background: rgba(63,185,80,.2); }
+
+/* ─── Reset btn ─── */
+.reset-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: .75rem; padding: .3rem .9rem; border-radius: 6px; cursor: pointer; font-family: var(--font); transition: all .15s; }
+.reset-btn:hover { border-color: var(--red); color: var(--red); }
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+  .hide-sm { display: none; }
+  .app { padding: 16px; }
+  .config { flex-direction: column; gap: .75rem; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Tablero Hipoteca BNA</h1>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026</div>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted);text-align:right">
+      Capital original<br>
+      <span style="color:var(--text)">$172.124.984,96</span>
+      <span style="display:block;margin-top:.15rem;font-size:.68rem;color:var(--txt3)" id="header-usd-orig">—</span>
+    </div>
+  </header>
+
+  <!-- Config -->
+  <div class="config">
+    <div class="field-grp">
+      <label>Inflación mensual proyectada</label>
+      <div class="slider-wrap">
+        <input type="range" id="inf-slider" min="0.5" max="10" step="0.1" value="2">
+        <span id="inf-val">2,0%</span>
+      </div>
+    </div>
+    <div class="field-grp">
+      <label>UVA actual ($/UVA)</label>
+      <input class="num-input" type="number" id="uva-actual" value="2130" step="1" min="1" placeholder="2130">
+    </div>
+    <div class="field-grp">
+      <label>Seguro mensual (ARS)</label>
+      <input class="num-input" type="number" id="seguro-global" value="0" step="1000" min="0" placeholder="0">
+    </div>
+    <div class="field-grp">
+      <label>TC hoy — SIOPEL <span id="tc-status" style="font-weight:400;color:var(--txt3);font-size:.65rem"></span></label>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <input class="num-input" type="number" id="tc-usd" value="1545" step="1" min="1" placeholder="TC actual">
+        <button onclick="fetchTC()" title="Actualizar" style="background:var(--surface2);border:1px solid var(--border);color:var(--blue);font-size:.8rem;padding:.35rem .7rem;border-radius:6px;cursor:pointer;line-height:1">↻</button>
+      </div>
+    </div>
+    <div class="field-grp" style="margin-left:auto">
+      <label>Reset pagadas</label>
+      <button onclick="resetPaid()" style="background:var(--surface2);border:1px solid var(--border);color:var(--danger);font-size:.75rem;padding:.35rem .85rem;border-radius:6px;cursor:pointer">Borrar marcas</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats" id="stats"></div>
+
+  <!-- Progress -->
+  <div class="progress-wrap">
+    <div class="progress-label">
+      <span>Progreso del préstamo</span>
+      <strong id="progress-pct">0%</strong>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  </div>
+
+  <!-- Main tabs -->
+  <div class="filters" style="border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:0;margin-bottom:0">
+    <button class="filter-btn active" data-tab="cuotas" onclick="setTab('cuotas',this)">Cuotas</button>
+    <button class="filter-btn" data-tab="cancelacion" onclick="setTab('cancelacion',this)">Cancelación anticipada</button>
+  </div>
+
+  <!-- CUOTAS PANEL -->
+  <div id="panel-cuotas">
+  <!-- Filters -->
+  <div class="filters">
+    <button class="filter-btn active" data-f="all" onclick="setFilter('all',this)">Todas (360)</button>
+    <button class="filter-btn" data-f="pend" onclick="setFilter('pend',this)">Pendientes</button>
+    <button class="filter-btn" data-f="paid" onclick="setFilter('paid',this)">Pagadas</button>
+    <button class="filter-btn warn-btn" data-f="fer" onclick="setFilter('fer',this)">Con feriado</button>
+    <span class="search-count" id="search-count"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table id="cuota-table">
+      <thead>
+        <tr>
+          <th style="text-align:left">Cuota</th>
+          <th>Débito</th>
+          <th class="hide-sm">Capital rest.</th>
+          <th class="hide-sm">Interés</th>
+          <th class="hide-sm">Amortiz.</th>
+          <th>Cuota UVA</th>
+          <th>+ Seguro</th>
+          <th>Total débito</th>
+        </tr>
+      </thead>
+      <tbody id="cuota-body"></tbody>
+    </table>
+  </div>
+  </div><!-- /panel-cuotas -->
+
+  <!-- CANCELACIÓN PANEL -->
+  <div id="panel-cancelacion" style="display:none;flex-direction:column;gap:1rem">
+
+    <!-- Inputs -->
+    <div class="config">
+      <div class="field-grp">
+        <label>Monto a precancelar (ARS)</label>
+        <input class="num-input" type="number" id="canc-monto" placeholder="Ej: 5.000.000" step="100000" min="0" style="width:200px" oninput="calcCancelacion()">
+      </div>
+      <div class="field-grp">
+        <label>Desde cuota nº</label>
+        <input class="num-input" type="number" id="canc-desde" value="1" step="1" min="1" max="360" style="width:90px" oninput="calcCancelacion()">
+      </div>
+      <div class="field-grp" style="justify-content:flex-end">
+        <label style="visibility:hidden">-</label>
+        <div id="canc-comision-badge" style="font-size:.75rem;padding:.35rem .85rem;border-radius:6px;background:rgba(245,195,107,.10);border:1px solid rgba(245,195,107,.25);color:var(--amber);white-space:nowrap">
+          Comisión 4% aplicable
+        </div>
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div id="canc-resultado" style="display:none;flex-direction:column;gap:.75rem">
+      <div class="stats" id="canc-stats"></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem">
+        <div style="font-size:.68rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.4rem;opacity:.85">Cuotas eliminadas del final</div>
+        <div id="canc-cuotas-list" style="font-size:.82rem;color:var(--muted)"></div>
+      </div>
+    </div>
+
+  </div><!-- /panel-cancelacion -->
+</div>
+
+<!-- Detail overlay -->
+<div class="detail-overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <div class="detail-head">
+    <h2 id="dp-title">Cuota</h2>
+    <button class="close-btn" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-body" id="dp-body"></div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const CAPITAL      = 172124984.96;
+const TC_CONTRATO  = 1545;           // TC ARS/USD al cierre del contrato (fijo)
+const SPREAD    = 0.06;
+const MESES     = 360;
+const TEM       = Math.pow(1 + SPREAD, 1/12) - 1;
+const PRIMERA   = new Date(2026, 10, 10); // 10/11/2026
+const STORAGE_PAID   = 'hipoteca_cuotas_v1_paid';
+const STORAGE_SEGS   = 'hipoteca_cuotas_v1_segs';
+const STORAGE_UVAS   = 'hipoteca_cuotas_v1_uvas';
+const STORAGE_CONFIG = 'hipoteca_cuotas_v1_cfg';
+
+// ─── Feriados argentinos ──────────────────────────────────────────────────────
+const INAMOVIBLES = ['01-01','05-01','05-25','07-09','12-08','12-25'];
+const EXTRA = {
+  2026: ['01-02','03-04','03-05','04-02','04-03','06-20','07-09','08-17','10-12','11-20'],
+  2027: ['02-12','02-15','04-01','04-02','06-21','08-16','10-11','11-22','12-08'],
+  2028: ['02-28','03-01','03-29','03-30','06-19','08-21','10-16','11-20'],
+  2029: ['02-16','02-19','04-18','04-19','06-18','08-20','10-15','11-19'],
+  2030: ['03-04','03-05','04-18','04-19','06-17','08-19','10-14','11-18'],
+  2031: ['02-24','02-25','04-17','04-18','06-16','08-18','10-13','11-17'],
+  2032: ['02-09','02-10','04-01','04-02','06-21','08-16','10-11','11-15'],
+  2033: ['02-28','03-01','04-21','04-22','06-20','08-15','10-10','11-21'],
+  2034: ['02-13','02-14','04-06','04-07','06-19','08-21','10-09','11-20'],
+  2035: ['03-04','03-05','04-19','04-20','06-18','08-19','10-08','11-19'],
+  2036: ['02-18','02-19','04-10','04-11','06-16','08-18','10-13','11-17'],
+};
+
+function isFeriado(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  const md = `${m}-${d}`;
+  if (INAMOVIBLES.includes(md)) return true;
+  const extras = EXTRA[y] || [];
+  return extras.includes(md);
+}
+
+function isWeekend(date) { return date.getDay() === 0 || date.getDay() === 6; }
+
+function nextHabil(date) {
+  let d = new Date(date);
+  while (isWeekend(d) || isFeriado(d)) { d.setDate(d.getDate()+1); }
+  return d;
+}
+
+function fechaDebito(mesIdx) {
+  const d = new Date(PRIMERA);
+  d.setMonth(d.getMonth() + mesIdx);
+  return nextHabil(d);
+}
+
+function dia10(mesIdx) {
+  const d = new Date(PRIMERA);
+  d.setMonth(d.getMonth() + mesIdx);
+  return new Date(d.getFullYear(), d.getMonth(), 10);
+}
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+function loadSet(key) {
+  try { const d = localStorage.getItem(key); return d ? new Set(JSON.parse(d)) : new Set(); } catch { return new Set(); }
+}
+function saveSet(key, s) {
+  try { localStorage.setItem(key, JSON.stringify([...s])); } catch {}
+}
+function loadMap(key) {
+  try { const d = localStorage.getItem(key); return d ? new Map(JSON.parse(d)) : new Map(); } catch { return new Map(); }
+}
+function saveMap(key, m) {
+  try { localStorage.setItem(key, JSON.stringify([...m])); } catch {}
+}
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_CONFIG) || '{}'); } catch { return {}; }
+}
+function saveConfig(cfg) {
+  try { localStorage.setItem(STORAGE_CONFIG, JSON.stringify(cfg)); } catch {}
+}
+
+let paidSet  = loadSet(STORAGE_PAID);
+let segsMap  = loadMap(STORAGE_SEGS);
+let uvasMap  = loadMap(STORAGE_UVAS);
+
+// ─── Schedule builder ─────────────────────────────────────────────────────────
+let schedule = [];
+function buildSchedule(infMensual, uvaActual) {
+  const cuotaBaseUVAs = CAPITAL / uvaActual * TEM / (1 - Math.pow(1+TEM, -MESES));
+  let capUVAs = CAPITAL / uvaActual;
+  let uvaIdx  = 1.0;
+  schedule = [];
+  for (let i = 0; i < MESES; i++) {
+    if (i > 0) uvaIdx *= (1 + infMensual);
+    const uvaHoy    = uvaActual * uvaIdx;
+    // Override UVA real if user set it
+    const uvaReal   = uvasMap.has(i) ? uvasMap.get(i) : uvaHoy;
+    const intUVAs   = capUVAs * TEM;
+    const amortUVAs = cuotaBaseUVAs - intUVAs;
+    capUVAs        -= amortUVAs;
+    if (i > 0) capUVAs *= (1 + infMensual);
+    const cuotaARS  = cuotaBaseUVAs * uvaReal;
+    const intARS    = intUVAs * uvaReal;
+    const amortARS  = amortUVAs * uvaReal;
+    const capARS    = capUVAs * uvaReal;
+    const d10       = dia10(i);
+    const debito    = fechaDebito(i);
+    const esFer     = debito.getTime() !== d10.getTime();
+    const seguro    = segsMap.has(i) ? segsMap.get(i) : (parseInt(document.getElementById('seguro-global')?.value||0)||0);
+    schedule.push({
+      idx: i,
+      mes: i+1,
+      d10, debito, esFer,
+      uvaHoy, uvaReal,
+      cuotaBaseUVAs,
+      cuotaARS, intARS, amortARS, capARS,
+      seguro,
+      total: cuotaARS + seguro,
+      paid: paidSet.has(i),
+    });
+  }
+}
+
+// ─── Formatting ──────────────────────────────────────────────────────────────
+const fmt  = n => '$' + Math.round(n).toLocaleString('es-AR');
+const fmtU = n => n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+function fmtDate(d) {
+  return d.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+function monthName(d) {
+  return d.toLocaleDateString('es-AR', {month:'long', year:'numeric'});
+}
+
+// ─── Tab switching ────────────────────────────────────────────────────────────
+function setTab(tab, btn) {
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-cuotas').style.display      = tab === 'cuotas'      ? ''     : 'none';
+  document.getElementById('panel-cancelacion').style.display = tab === 'cancelacion' ? 'flex' : 'none';
+  if (tab === 'cancelacion') calcCancelacion();
+}
+
+// ─── Cancelación anticipada ───────────────────────────────────────────────────
+function calcCancelacion() {
+  const montoARS   = parseFloat(document.getElementById('canc-monto').value) || 0;
+  const desdeCuota = parseInt(document.getElementById('canc-desde').value) || 1;
+  const uvaActual  = parseFloat(document.getElementById('uva-actual').value) || 2130;
+
+  if (montoARS <= 0 || schedule.length === 0) {
+    document.getElementById('canc-resultado').style.display = 'none';
+    return;
+  }
+
+  // ── Comisión: primeros 90 meses desde otorgamiento 28/09/2026 ──
+  const OTORGAMIENTO   = new Date(2026, 8, 28);
+  const LIBRE_COMISION = new Date(OTORGAMIENTO);
+  LIBRE_COMISION.setMonth(LIBRE_COMISION.getMonth() + 90);
+  const cuotaIdx   = Math.min(Math.max(desdeCuota - 1, 0), MESES - 1);
+  const fechaCuota = schedule[cuotaIdx]?.debito || PRIMERA;
+  const hayComision = fechaCuota < LIBRE_COMISION;
+
+  const badge = document.getElementById('canc-comision-badge');
+  if (hayComision) {
+    badge.textContent = 'Comisión 4% aplicable';
+    badge.style.background = 'rgba(245,195,107,.10)';
+    badge.style.borderColor = 'rgba(245,195,107,.25)';
+    badge.style.color = 'var(--amber)';
+  } else {
+    badge.textContent = 'Sin comisión (> 7,5 años)';
+    badge.style.background = 'rgba(63,185,80,.08)';
+    badge.style.borderColor = 'rgba(63,185,80,.25)';
+    badge.style.color = 'var(--green)';
+  }
+
+  const comision   = hayComision ? montoARS * 0.04 : 0;
+  const totalPagar = montoARS + comision;
+
+  // ── Cuota base en UVAs (constante, sistema francés) ──
+  const capInicialUVAs = CAPITAL / uvaActual;          // 80.670,86 UVAs
+  const cuotaBaseUVAs  = capInicialUVAs * TEM / (1 - Math.pow(1 + TEM, -MESES));
+
+  // ── Saldo en UVAs inmediatamente antes de la cuota elegida ──
+  let saldoAntesUVAs = capInicialUVAs;
+  for (let i = 0; i < cuotaIdx; i++) {
+    const amortUVAs = cuotaBaseUVAs - saldoAntesUVAs * TEM;
+    saldoAntesUVAs -= amortUVAs;
+  }
+
+  // ── UVA proyectada en la fecha de cancelación ──
+  const uvaEnCuota = schedule[cuotaIdx]?.uvaHoy || uvaActual;
+
+  // ── UVAs que cancela el monto ingresado ──
+  let uvasACancelar = montoARS / uvaEnCuota;
+  const cancelacionTotal = uvasACancelar >= saldoAntesUVAs - 1e-6;
+  if (cancelacionTotal) uvasACancelar = saldoAntesUVAs;
+
+  // ── Nuevo saldo tras la precancelación ──
+  const nuevoSaldoUVAs = Math.max(saldoAntesUVAs - uvasACancelar, 0);
+
+  // ── Cronograma ORIGINAL desde cuotaIdx: intereses futuros en UVAs ──
+  function interesesFuturosUVAs(saldo0, nCuotas) {
+    let s = saldo0, totalInt = 0;
+    for (let i = 0; i < nCuotas; i++) {
+      const intUVAs   = s * TEM;
+      const amortUVAs = cuotaBaseUVAs - intUVAs;
+      totalInt += intUVAs;
+      s -= amortUVAs;
+      if (s < 1e-6) break;
+    }
+    return totalInt;
+  }
+  const cuotasRestantesOrig = MESES - cuotaIdx;
+  const intFuturosOrigUVAs  = interesesFuturosUVAs(saldoAntesUVAs, cuotasRestantesOrig);
+
+  // ── Cuotas que restan con el nuevo saldo (para determinar cuántas se eliminan) ──
+  // Contar cuántas cuotas necesita el nuevo saldo para amortizarse completamente
+  let cuotasConNuevoSaldo = 0;
+  if (nuevoSaldoUVAs > 1e-6) {
+    let s = nuevoSaldoUVAs;
+    for (let i = 0; i < cuotasRestantesOrig; i++) {
+      const amortUVAs = cuotaBaseUVAs - s * TEM;
+      s -= amortUVAs;
+      cuotasConNuevoSaldo++;
+      if (s < 1e-6) break;
+    }
+  }
+
+  const nElim         = cuotasRestantesOrig - cuotasConNuevoSaldo;
+  const cuotasTotales = cuotaIdx + cuotasConNuevoSaldo; // cuotas pagadas + restantes
+
+  // ── Intereses futuros con nuevo saldo ──
+  const intFuturosNuevoUVAs = interesesFuturosUVAs(nuevoSaldoUVAs, cuotasConNuevoSaldo);
+
+  // ── Ahorro en UVAs y en ARS de hoy ──
+  const ahorroUVAs      = intFuturosOrigUVAs - intFuturosNuevoUVAs;
+  const ahorroARSHoy    = ahorroUVAs * uvaActual;
+
+  // ── Nueva fecha de fin ──
+  const idxUltimaNew  = cuotaIdx + cuotasConNuevoSaldo - 1;
+  const nuevaFechaFin = cancelacionTotal
+    ? schedule[cuotaIdx]?.debito
+    : (idxUltimaNew >= 0 && idxUltimaNew < MESES ? schedule[idxUltimaNew]?.debito : null);
+
+  // ── Render ──
+  document.getElementById('canc-resultado').style.display = 'flex';
+  const fmtUVA = n => fmtU(n) + ' UVA';
+
+  document.getElementById('canc-stats').innerHTML = [
+    { l:'Capital a precancelar',     v: fmt(montoARS),            s: fmtUVA(uvasACancelar) + ' al TC de la cuota ' + desdeCuota },
+    { l:'Saldo antes / después',     v: fmtUVA(saldoAntesUVAs),  s: '→ ' + (cancelacionTotal ? 'cancelación total' : fmtUVA(nuevoSaldoUVAs)) },
+    { l:'Comisión (' + (hayComision ? '4%' : '0%') + ')', v: hayComision ? fmt(comision) : '$0', s: hayComision ? 'primeros 7,5 años' : 'después de 7,5 años' },
+    { l:'Total a desembolsar',       v: fmt(totalPagar),          s: 'capital + comisión' },
+    { l:'Cuotas eliminadas',         v: nElim,                    s: cancelacionTotal ? 'cancelación total' : `quedan ${cuotasConNuevoSaldo} cuota${cuotasConNuevoSaldo!==1?'s':''}` },
+    { l:'Ahorro en intereses',       v: fmtUVA(ahorroUVAs),       s: fmt(ahorroARSHoy) + ' en ARS de hoy' },
+    { l:'Nueva fecha de fin',        v: nuevaFechaFin ? fmtDate(nuevaFechaFin) : '—', s: cancelacionTotal ? 'préstamo cancelado' : `cuota nº ${cuotasTotales}` },
+  ].map(m => `<div class="stat"><div class="sl">${m.l}</div><div class="sv">${m.v}</div><div class="ss">${m.s}</div></div>`).join('');
+
+  // ── Cuotas eliminadas del final ──
+  const listEl = document.getElementById('canc-cuotas-list');
+  if (cancelacionTotal) {
+    listEl.innerHTML = `<span style="color:var(--green)">Cancelación total — el préstamo se extingue en la cuota ${desdeCuota}.</span>`;
+  } else if (nElim <= 0) {
+    listEl.innerHTML = '<span style="color:var(--muted)">El monto reduce el saldo pero no elimina ninguna cuota completa del final.</span>';
+  } else {
+    const primerElim = cuotaIdx + cuotasConNuevoSaldo + 1;
+    const ultimaElim = MESES;
+    const fPrim = schedule[primerElim - 1]?.debito;
+    const fUlt  = schedule[ultimaElim - 1]?.debito;
+    listEl.innerHTML = `Cuotas <strong style="color:var(--text)">${primerElim}</strong> a <strong style="color:var(--text)">${ultimaElim}</strong>`
+      + (fPrim && fUlt ? ` (${fmtDate(fPrim)} → ${fmtDate(fUlt)})` : '');
+  }
+}
+
+// ─── Filter state ─────────────────────────────────────────────────────────────
+let currentFilter = 'all';
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+// ─── Stats ───────────────────────────────────────────────────────────────────
+function renderStats() {
+  const paidCount = schedule.filter(r => r.paid).length;
+  const pend      = schedule.filter(r => !r.paid);
+  const nextRow   = pend[0];
+  const lastRow   = schedule[MESES-1];
+  const cuota0    = schedule[0];
+  const pct       = paidCount / MESES * 100;
+
+  document.getElementById('progress-fill').style.width = pct.toFixed(1) + '%';
+  document.getElementById('progress-pct').textContent  = pct.toFixed(1) + '%';
+
+  document.getElementById('stats').innerHTML = [
+    { l:'Cuota inicial (UVA)',  v: fmt(cuota0.cuotaARS),           s:`${fmtU(cuota0.cuotaBaseUVAs)} UVAs` },
+    { l:'Pagadas / Total',      v: `${paidCount} / ${MESES}`,      s:`${MESES-paidCount} pendientes` },
+    { l:'Saldo estimado',       v: nextRow ? fmt(nextRow.capARS) : '—', s:'capital restante en ARS' },
+    { l:'Próxima cuota',        v: nextRow ? fmt(nextRow.cuotaARS) : '¡Listo!', s: nextRow ? fmtDate(nextRow.debito) : 'Préstamo cancelado' },
+    { l:'Fin del préstamo',     v: fmtDate(new Date(lastRow.debito)), s:'cuota nº 360' },
+    { l:'UVA actual usada',     v: fmtU(parseFloat(document.getElementById('uva-actual').value)||2130), s:'$/UVA' },
+  ].map(m=>`<div class="stat"><div class="sl">${m.l}</div><div class="sv">${m.v}</div><div class="ss">${m.s}</div></div>`).join('');
+}
+
+// ─── Table ───────────────────────────────────────────────────────────────────
+function renderTable() {
+  let rows = schedule;
+  if (currentFilter === 'pend') rows = schedule.filter(r => !r.paid);
+  if (currentFilter === 'paid') rows = schedule.filter(r => r.paid);
+  if (currentFilter === 'fer')  rows = schedule.filter(r => r.esFer);
+
+  // Update filter buttons label counts
+  const all  = schedule.length;
+  const paid = schedule.filter(r=>r.paid).length;
+  const pend = all - paid;
+  const fer  = schedule.filter(r=>r.esFer).length;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    const f = b.dataset.f;
+    if (f==='all')  b.textContent = `Todas (${all})`;
+    if (f==='pend') b.textContent = `Pendientes (${pend})`;
+    if (f==='paid') b.textContent = `Pagadas (${paid})`;
+    if (f==='fer')  b.textContent = `Con feriado (${fer})`;
+  });
+  document.getElementById('search-count').textContent = currentFilter !== 'all' ? `Mostrando ${rows.length}` : '';
+
+  const tbody = document.getElementById('cuota-body');
+  tbody.innerHTML = rows.map(r => {
+    const dotCls = r.paid ? 'dot-paid' : (r.esFer ? 'dot-fer' : 'dot-pend');
+    const rowCls = (r.paid ? 'is-paid ' : '') + (r.esFer ? 'is-feriado' : '');
+    const badge  = r.esFer ? `<span class="badge-fer">feriado</span>` : '';
+    const bpaid  = r.paid  ? `<span class="badge-paid">✓</span>` : '';
+    const hasReal = uvasMap.has(r.idx);
+    const cuotaCell = hasReal
+      ? `<span class="real-cuota">${fmt(r.cuotaARS)}</span>`
+      : `<span class="ars">${fmt(r.cuotaARS)}</span>`;
+    const segCell = r.seguro > 0 ? `<span class="ars" style="color:var(--warn)">${fmt(r.seguro)}</span>` : `<span style="color:var(--border)">—</span>`;
+    return `<tr class="${rowCls}" onclick="openDetail(${r.idx})">
+      <td><span class="dot ${dotCls}"></span><span class="row-num">${r.mes}</span>${badge}${bpaid}</td>
+      <td class="fecha-cell n-cell">${fmtDate(r.debito)}</td>
+      <td class="ars hide-sm">${fmt(r.capARS)}</td>
+      <td class="ars hide-sm">${fmt(r.intARS)}</td>
+      <td class="ars hide-sm">${fmt(r.amortARS)}</td>
+      <td>${cuotaCell}</td>
+      <td>${segCell}</td>
+      <td class="ars" style="font-weight:500">${fmt(r.total)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Detail panel ────────────────────────────────────────────────────────────
+let currentDetailIdx = null;
+function openDetail(idx) {
+  currentDetailIdx = idx;
+  const r = schedule[idx];
+  document.getElementById('dp-title').textContent = `Cuota ${r.mes} — ${monthName(r.debito)}`;
+  const ferHtml = r.esFer ? `<div class="feriado-box">⚠️ El día 10 de este mes (${fmtDate(r.d10)}) cae en feriado o fin de semana. El débito se corre al <strong>${fmtDate(r.debito)}</strong>.</div>` : '';
+  const segVal  = segsMap.has(idx) ? segsMap.get(idx) : '';
+  const uvaVal  = uvasMap.has(idx) ? uvasMap.get(idx) : '';
+  const paidBtn = r.paid
+    ? `<button class="mark-paid-btn paid-state" onclick="togglePaid(${idx})">✓ Marcar como pendiente</button>`
+    : `<button class="mark-paid-btn unpaid" onclick="togglePaid(${idx})">Marcar como pagada</button>`;
+
+  document.getElementById('dp-body').innerHTML = `
+    ${ferHtml}
+    <div class="detail-section">Fechas</div>
+    <div class="detail-row"><span class="dk">Día 10 del mes</span><span class="dv n-cell">${fmtDate(r.d10)}</span></div>
+    <div class="detail-row"><span class="dk">Débito efectivo</span><span class="dv n-cell">${fmtDate(r.debito)}</span></div>
+
+    <div class="detail-section">Cuota</div>
+    <div class="detail-row"><span class="dk">Cuota base (UVAs)</span><span class="dv n-cell">${fmtU(r.cuotaBaseUVAs)}</span></div>
+    <div class="detail-row"><span class="dk">UVA proyectada</span><span class="dv n-cell">$${fmtU(r.uvaHoy)}</span></div>
+    <div class="detail-row"><span class="dk">UVA real (si ingresada)</span><span class="dv n-cell">${uvasMap.has(idx) ? '$'+fmtU(r.uvaReal) : '—'}</span></div>
+    <div class="detail-row"><span class="dk">Cuota en ARS</span><span class="dv n-cell" style="color:var(--accent)">${fmt(r.cuotaARS)}</span></div>
+
+    <div class="detail-section">Composición</div>
+    <div class="detail-row"><span class="dk">Interés</span><span class="dv n-cell">${fmt(r.intARS)}</span></div>
+    <div class="detail-row"><span class="dk">Amortización capital</span><span class="dv n-cell">${fmt(r.amortARS)}</span></div>
+    <div class="detail-row"><span class="dk">Capital restante</span><span class="dv n-cell">${fmt(r.capARS)}</span></div>
+
+    <div class="detail-section">Seguro + Total</div>
+    <div class="detail-row"><span class="dk">Seguro este mes</span><span class="dv n-cell" style="color:var(--warn)">${r.seguro > 0 ? fmt(r.seguro) : '—'}</span></div>
+    <div class="detail-row"><span class="dk">Total débito</span><span class="dv n-cell" style="font-size:1.05rem;color:var(--accent2)">${fmt(r.total)}</span></div>
+
+    <div class="detail-divider"></div>
+
+    <div class="detail-section">Ajustes manuales</div>
+    <div class="detail-input-row">
+      <label>UVA real del mes ($/UVA) — deja vacío para usar proyección</label>
+      <input class="num-input" style="width:100%" type="number" id="inp-uva-real" value="${uvaVal}" placeholder="${fmtU(r.uvaHoy)}" step="0.01">
+    </div>
+    <div class="detail-input-row">
+      <label>Seguro de este mes (ARS)</label>
+      <input class="num-input" style="width:100%" type="number" id="inp-seguro" value="${segVal}" placeholder="0" step="1000">
+    </div>
+    <button onclick="saveDetailInputs(${idx})" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:.8rem;padding:.5rem 1rem;border-radius:7px;cursor:pointer;width:100%">Guardar ajustes de esta cuota</button>
+
+    <div class="detail-divider"></div>
+    ${paidBtn}
+  `;
+
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('detail-panel').classList.remove('open');
+  currentDetailIdx = null;
+}
+
+function saveDetailInputs(idx) {
+  const uvaRaw = parseFloat(document.getElementById('inp-uva-real').value);
+  const segRaw = parseFloat(document.getElementById('inp-seguro').value);
+  if (!isNaN(uvaRaw) && uvaRaw > 0) { uvasMap.set(idx, uvaRaw); } else { uvasMap.delete(idx); }
+  if (!isNaN(segRaw) && segRaw > 0) { segsMap.set(idx, segRaw); } else { segsMap.delete(idx); }
+  saveMap(STORAGE_UVAS, uvasMap);
+  saveMap(STORAGE_SEGS, segsMap);
+  rebuild();
+  openDetail(idx);
+}
+
+function togglePaid(idx) {
+  if (paidSet.has(idx)) { paidSet.delete(idx); } else { paidSet.add(idx); }
+  saveSet(STORAGE_PAID, paidSet);
+  schedule[idx].paid = paidSet.has(idx);
+  renderStats();
+  renderTable();
+  if (document.getElementById('detail-panel').classList.contains('open')) {
+    openDetail(idx);
+  }
+}
+
+function resetPaid() {
+  if (!confirm('¿Borrar todas las marcas de cuotas pagadas?')) return;
+  paidSet.clear();
+  saveSet(STORAGE_PAID, paidSet);
+  rebuild();
+}
+
+// ─── Main rebuild ─────────────────────────────────────────────────────────────
+function rebuild() {
+  const inf     = parseFloat(document.getElementById('inf-slider').value) / 100;
+  const uva     = parseFloat(document.getElementById('uva-actual').value) || 2130;
+  document.getElementById('inf-val').textContent = (inf*100).toFixed(1).replace('.',',') + '%';
+  // Persist config
+  const tc = parseFloat(document.getElementById('tc-usd').value) || 1200;
+  saveConfig({ inf: inf*100, uva, seguro: document.getElementById('seguro-global').value, tc });
+  buildSchedule(inf, uva);
+  // Apply paid set
+  schedule.forEach(r => { r.paid = paidSet.has(r.idx); });
+  renderStats();
+  renderTable();
+  renderUSD();
+}
+
+// ─── USD header ──────────────────────────────────────────────────────────────
+function renderUSD() {
+  const origUSD = Math.round(CAPITAL / TC_CONTRATO);
+  const fmtUSD = n => 'USD ' + n.toLocaleString('es-AR');
+  document.getElementById('header-usd-orig').textContent = fmtUSD(origUSD);
+}
+
+// ─── TC en vivo desde seguimiento-fx ─────────────────────────────────────────
+function fetchTC() {
+  const statusEl = document.getElementById('tc-status');
+  statusEl.textContent = 'actualizando…';
+  statusEl.style.color = 'var(--txt3)';
+  fetch('https://seguimiento-fx.vercel.app/api/dolar', {cache:'no-store'})
+    .then(r => r.json())
+    .then(data => {
+      const price = data?.mayorista?.price;
+      if (price && price > 0) {
+        document.getElementById('tc-usd').value = Math.round(price);
+        const ts = data?.mayorista?.timestamp;
+        const hora = ts ? new Date(ts*1000).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
+        statusEl.textContent = hora ? `en vivo · ${hora}` : 'en vivo';
+        statusEl.style.color = 'var(--green)';
+        rebuild();
+      } else {
+        statusEl.textContent = 'sin dato';
+        statusEl.style.color = 'var(--red)';
+      }
+    })
+    .catch(() => {
+      statusEl.textContent = 'error de conexión';
+      statusEl.style.color = 'var(--red)';
+    });
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
+document.getElementById('inf-slider').addEventListener('input', rebuild);
+document.getElementById('uva-actual').addEventListener('change', rebuild);
+document.getElementById('seguro-global').addEventListener('change', rebuild);
+document.getElementById('tc-usd').addEventListener('change', rebuild);
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+(function init() {
+  const cfg = loadConfig();
+  if (cfg.inf)    { document.getElementById('inf-slider').value   = cfg.inf; }
+  if (cfg.uva)    { document.getElementById('uva-actual').value   = cfg.uva; }
+  if (cfg.seguro) { document.getElementById('seguro-global').value = cfg.seguro; }
+  if (cfg.tc)     { document.getElementById('tc-usd').value        = cfg.tc; }
+  rebuild();
+  // Buscar TC en vivo al cargar
+  fetchTC();
+})();
+</script>
+</body>
+</html>

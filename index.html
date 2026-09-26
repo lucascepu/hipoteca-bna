@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="es">
-<!-- GitHub-Vercel integration test -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -153,6 +152,9 @@ td:first-child { text-align: left; }
 .uva-table th,.uva-table td { padding-left:14px; padding-right:14px; }
 .uva-table th:first-child,.uva-table td:first-child { text-align:left; }
 @media(max-width:900px){#panel-uva #uva-stats{grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+.no-spin::-webkit-inner-spin-button,.no-spin::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.no-spin{-moz-appearance:textfield}
 </style>
 </head>
 <body>
@@ -160,7 +162,7 @@ td:first-child { text-align: left; }
   <header>
     <div>
       <h1>Tablero Hipoteca BNA</h1>
-      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.4</strong></div>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.4.0</strong></div>
     </div>
     <div style="font-size:.72rem;color:var(--muted);text-align:right">
       Capital original<br>
@@ -180,11 +182,11 @@ td:first-child { text-align: left; }
     </div>
     <div class="field-grp">
       <label>UVA actual ($/UVA)</label>
-      <input class="num-input" type="number" id="uva-actual" value="2130" step="1" min="1" placeholder="2130">
+      <input class="num-input" type="text" inputmode="decimal" id="uva-actual" value="2.130,00" placeholder="2.130,00">
     </div>
     <div class="field-grp">
       <label>Seguro mensual (ARS)</label>
-      <input class="num-input" type="number" id="seguro-global" value="0" step="1000" min="0" placeholder="0">
+      <input class="num-input" type="text" inputmode="numeric" id="seguro-global" value="0" placeholder="0">
     </div>
     <div class="field-grp" style="margin-left:auto">
       <label>Reset pagadas</label>
@@ -265,7 +267,7 @@ td:first-child { text-align: left; }
       </div>
       <div class="field-grp">
         <label>Junto con cuota nº</label>
-        <input class="num-input" type="number" id="canc-desde" value="1" step="1" min="1" max="360" style="width:90px" oninput="calcCancelacion()">
+        <input class="num-input no-spin" type="number" id="canc-desde" value="1" min="1" max="360" style="width:90px" oninput="calcCancelacion()" onblur="this.value=Math.min(360,Math.max(1,parseInt(this.value)||1));calcCancelacion()">
       </div>
       <div class="field-grp" style="justify-content:flex-end">
         <label style="visibility:hidden">-</label>
@@ -314,7 +316,7 @@ const STORAGE_CONFIG = 'hipoteca_cuotas_v1_cfg';
 // ─── Feriados argentinos ──────────────────────────────────────────────────────
 const INAMOVIBLES = ['01-01','05-01','05-25','07-09','12-08','12-25'];
 const EXTRA = {
-  2026: ['01-02','03-04','03-05','04-02','04-03','06-20','07-09','08-17','10-12','11-20'],
+  2026: ['01-02','03-04','03-05','04-02','04-03','06-20','08-17','10-12','11-20'],
   2027: ['02-12','02-15','04-01','04-02','06-21','08-16','10-11','11-22','12-08'],
   2028: ['02-28','03-01','03-29','03-30','06-19','08-21','10-16','11-20'],
   2029: ['02-16','02-19','04-18','04-19','06-18','08-20','10-15','11-19'],
@@ -403,7 +405,7 @@ function buildSchedule(infMensual, uvaActual) {
     const d10       = dia10(i);
     const debito    = fechaDebito(i);
     const esFer     = debito.getTime() !== d10.getTime();
-    const seguro    = segsMap.has(i) ? segsMap.get(i) : (parseInt(document.getElementById('seguro-global')?.value||0)||0);
+    const seguro    = segsMap.has(i) ? segsMap.get(i) : (parseAR(document.getElementById('seguro-global')?.value||0)||0);
     schedule.push({
       idx:i, mes:i+1, d10, debito, esFer, uvaHoy, uvaReal,
       saldoAntesUVAs, intUVAs, amortUVAs, capUVAs, cuotaBaseUVAs,
@@ -411,6 +413,19 @@ function buildSchedule(infMensual, uvaActual) {
       total: cuotaARS + seguro, paid: paidSet.has(i),
     });
   }
+}
+
+function parseAR(v) {
+  if (typeof v === 'number') return v;
+  const s = String(v ?? '').trim().replace(/\s/g,'');
+  if (!s) return NaN;
+  if (s.includes(',')) return Number(s.replace(/\./g,'').replace(',','.'));
+  return Number(s.replace(/\./g,''));
+}
+function formatMoneyInput(el, decimals=false) {
+  const n=parseAR(el.value);
+  if (!Number.isFinite(n)) return;
+  el.value=n.toLocaleString('es-AR',{minimumFractionDigits:decimals?2:0,maximumFractionDigits:decimals?2:0});
 }
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
@@ -441,9 +456,9 @@ function formatCancMonto(el) {
 }
 
 function calcCancelacion() {
-  const montoARS   = parseFloat(document.getElementById('canc-monto').value.replace(/\./g,'').replace(',','.')) || 0;
-  const desdeCuota = parseInt(document.getElementById('canc-desde').value) || 1;
-  const uvaActual  = parseFloat(document.getElementById('uva-actual').value) || 2130;
+  const montoARS   = parseAR(document.getElementById('canc-monto').value) || 0;
+  const desdeCuota = Math.min(Math.max(parseInt(document.getElementById('canc-desde').value) || 1, 1), MESES);
+  const uvaActual  = parseAR(document.getElementById('uva-actual').value) || 2130;
 
   if (montoARS <= 0 || schedule.length === 0) {
     document.getElementById('canc-resultado').style.display = 'none';
@@ -549,7 +564,7 @@ function calcCancelacion() {
     { l:'Saldo antes / después',     v: fmtUVA(saldoAntesUVAs),  s: '→ ' + (cancelacionTotal ? 'cancelación total' : fmtUVA(nuevoSaldoUVAs)) },
     { l:'Comisión (' + (hayComision ? '4%' : '0%') + ')', v: hayComision ? fmt(comision) : '$0', s: hayComision ? 'primeros 7,5 años' : 'después de 7,5 años' },
     { l:'Total a desembolsar',       v: fmt(totalPagar),          s: 'extraordinario: capital + comisión; no incluye cuota ordinaria' },
-    { l:'Cuotas eliminadas',         v: nElim,                    s: cancelacionTotal ? 'cancelación total' : `quedan ${cuotasConNuevoSaldo} cuota${cuotasConNuevoSaldo!==1?'s':''}` },
+    { l:'Cuotas eliminadas',         v: nElim.toLocaleString('es-AR'), s: cancelacionTotal ? 'cancelación total' : `quedan ${cuotasConNuevoSaldo.toLocaleString('es-AR')} cuota${cuotasConNuevoSaldo!==1?'s':''}` },
     { l:'Ahorro en intereses',       v: fmtUVA(ahorroUVAs),       s: fmt(ahorroARSHoy) + ' en ARS de hoy' },
     { l:'Nueva fecha de fin',        v: nuevaFechaFin ? fmtDate(nuevaFechaFin) : '—', s: cancelacionTotal ? 'préstamo cancelado' : `cuota nº ${cuotasTotales}` },
   ].map(m => `<div class="stat"><div class="sl">${m.l}</div><div class="sv">${m.v}</div><div class="ss">${m.s}</div></div>`).join('');
@@ -574,9 +589,6 @@ function calcCancelacion() {
 function renderUVA() {
   if (!schedule.length) return;
   const cuotaUVA = schedule[0].cuotaBaseUVAs;
-  const totalInteres = schedule.reduce((a,r) => a + r.intUVAs, 0);
-  const mitad = schedule[179];
-  const saldoMitad = mitad ? mitad.capUVAs : 0;
   document.getElementById('uva-stats').innerHTML = [
     {l:'Capital original',v:fmtU(CAPITAL_UVA)+' UVA',s:'base contractual'},
     {l:'Cuota financiera',v:fmtU(cuotaUVA)+' UVA',s:'constante en UVA'},
@@ -610,21 +622,21 @@ function renderStats() {
   const cuota0    = schedule[0];
   const pct       = paidCount / MESES * 100;
   const saldoUVAs = nextRow ? nextRow.saldoAntesUVAs : 0;
-  const uvaSaldo = nextRow ? nextRow.uvaReal : (lastRow?.uvaReal || (parseFloat(document.getElementById('uva-actual').value)||2130));
+  const uvaSaldo = nextRow ? nextRow.uvaReal : (lastRow?.uvaReal || (parseAR(document.getElementById('uva-actual').value)||2130));
   const saldoARS = saldoUVAs * uvaSaldo;
   const amortizadoUVAs = Math.max(CAPITAL_UVA - saldoUVAs, 0);
   const pctCapital = CAPITAL_UVA ? amortizadoUVAs / CAPITAL_UVA * 100 : 100;
 
-  document.getElementById('progress-fill').style.width = pct.toFixed(1) + '%';
+  document.getElementById('progress-fill').style.width = pct.toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%';
   document.getElementById('progress-pct').textContent  = pct.toFixed(1) + '%';
 
   document.getElementById('stats').innerHTML = [
-    { l:'Deuda actual (UVA)', v: fmtU(saldoUVAs) + ' UVA', s:`${fmtU(amortizadoUVAs)} UVA amortizadas · ${pctCapital.toFixed(2)}%` },
+    { l:'Deuda actual (UVA)', v: fmtU(saldoUVAs) + ' UVA', s:`${fmtU(amortizadoUVAs)} UVA amortizadas · ${pctCapital.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}%` },
     { l:'Deuda actual (ARS)', v: saldoUVAs > 0 ? fmt(saldoARS) : '$0', s:`a ${fmtU(uvaSaldo)} $/UVA` },
-    { l:'Pagadas / Total', v:`${paidCount} / ${MESES}`, s:`${MESES-paidCount} pendientes · ${pct.toFixed(1)}% del plazo` },
+    { l:'Pagadas / Total', v:`${paidCount} / ${MESES}`, s:`${MESES-paidCount} pendientes · ${pct.toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}% del plazo` },
     { l:'Próxima cuota', v:nextRow ? fmt(nextRow.cuotaARS) : '¡Listo!', s:nextRow ? `${fmtU(nextRow.cuotaBaseUVAs)} UVA · ${fmtDate(nextRow.debito)}` : 'Préstamo cancelado' },
     { l:'Fin del préstamo', v:fmtDate(new Date(lastRow.debito)), s:'cuota nº 360' },
-    { l:'UVA actual usada', v:fmtU(parseFloat(document.getElementById('uva-actual').value)||2130), s:'$/UVA' },
+    { l:'UVA actual usada', v:fmtU(parseAR(document.getElementById('uva-actual').value)||2130), s:'$/UVA' },
   ].map(m=>`<div class="stat"><div class="sl">${m.l}</div><div class="sv">${m.v}</div><div class="ss">${m.s}</div></div>`).join('');
 }
 
@@ -712,11 +724,11 @@ function openDetail(idx) {
     <div class="detail-section">Ajustes manuales</div>
     <div class="detail-input-row">
       <label>UVA real del mes ($/UVA) — deja vacío para usar proyección</label>
-      <input class="num-input" style="width:100%" type="number" id="inp-uva-real" value="${uvaVal}" placeholder="${fmtU(r.uvaHoy)}" step="0.01">
+      <input class="num-input" style="width:100%" type="text" inputmode="decimal" id="inp-uva-real" value="${uvaVal!==''?fmtU(uvaVal):''}" placeholder="${fmtU(r.uvaHoy)}">
     </div>
     <div class="detail-input-row">
       <label>Seguro de este mes (ARS)</label>
-      <input class="num-input" style="width:100%" type="number" id="inp-seguro" value="${segVal}" placeholder="0" step="1000">
+      <input class="num-input" style="width:100%" type="text" inputmode="numeric" id="inp-seguro" value="${segVal!==''?Math.round(segVal).toLocaleString('es-AR'):''}" placeholder="0">
     </div>
     <button onclick="saveDetailInputs(${idx})" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:.8rem;padding:.5rem 1rem;border-radius:7px;cursor:pointer;width:100%">Guardar ajustes de esta cuota</button>
 
@@ -735,8 +747,8 @@ function closeDetail() {
 }
 
 function saveDetailInputs(idx) {
-  const uvaRaw = parseFloat(document.getElementById('inp-uva-real').value);
-  const segRaw = parseFloat(document.getElementById('inp-seguro').value);
+  const uvaRaw = parseAR(document.getElementById('inp-uva-real').value);
+  const segRaw = parseAR(document.getElementById('inp-seguro').value);
   if (!isNaN(uvaRaw) && uvaRaw > 0) { uvasMap.set(idx, uvaRaw); } else { uvasMap.delete(idx); }
   if (!isNaN(segRaw) && segRaw > 0) { segsMap.set(idx, segRaw); } else { segsMap.delete(idx); }
   saveMap(STORAGE_UVAS, uvasMap);
@@ -766,10 +778,10 @@ function resetPaid() {
 // ─── Main rebuild ─────────────────────────────────────────────────────────────
 function rebuild() {
   const inf     = parseFloat(document.getElementById('inf-slider').value) / 100;
-  const uva     = parseFloat(document.getElementById('uva-actual').value) || 2130;
+  const uva     = parseAR(document.getElementById('uva-actual').value) || 2130;
   document.getElementById('inf-val').textContent = (inf*100).toFixed(1).replace('.',',') + '%';
   // Persist config
-  saveConfig({ inf: inf*100, uva, seguro: document.getElementById('seguro-global').value });
+  saveConfig({ inf: inf*100, uva, seguro: parseAR(document.getElementById('seguro-global').value)||0 });
   buildSchedule(inf, uva);
   // Apply paid set
   schedule.forEach(r => { r.paid = paidSet.has(r.idx); });
@@ -787,15 +799,15 @@ function renderUSD() {
 
 // ─── Event listeners ─────────────────────────────────────────────────────────
 document.getElementById('inf-slider').addEventListener('input', rebuild);
-document.getElementById('uva-actual').addEventListener('change', rebuild);
-document.getElementById('seguro-global').addEventListener('change', rebuild);
+document.getElementById('uva-actual').addEventListener('change', e=>{formatMoneyInput(e.target,true);rebuild();});
+document.getElementById('seguro-global').addEventListener('change', e=>{formatMoneyInput(e.target,false);rebuild();});
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (function init() {
   const cfg = loadConfig();
   if (cfg.inf)    { document.getElementById('inf-slider').value   = cfg.inf; }
-  if (cfg.uva)    { document.getElementById('uva-actual').value   = cfg.uva; }
-  if (cfg.seguro) { document.getElementById('seguro-global').value = cfg.seguro; }
+  if (cfg.uva)    { document.getElementById('uva-actual').value = Number(cfg.uva).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  if (cfg.seguro) { document.getElementById('seguro-global').value = Number(cfg.seguro).toLocaleString('es-AR'); }
   rebuild();
 })();
 </script>

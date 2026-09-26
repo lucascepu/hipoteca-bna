@@ -155,7 +155,7 @@ td:first-child { text-align: left; }
   <header>
     <div>
       <h1>Tablero Hipoteca BNA</h1>
-      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.1</strong></div>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.2</strong></div>
     </div>
     <div style="font-size:.72rem;color:var(--muted);text-align:right">
       Capital original<br>
@@ -242,7 +242,7 @@ td:first-child { text-align: left; }
     <div class="stats" id="uva-stats"></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th style="text-align:left">Cuota</th><th>Saldo UVA</th><th>Capital amortizado</th><th>% amortizado</th><th>Interés UVA</th><th>Amortización UVA</th></tr></thead>
+        <thead><tr><th style="text-align:left">Cuota</th><th>Capital UVA</th><th>Interés UVA</th><th>% amortizado</th><th>Capital amortizado</th><th>Saldo UVA</th></tr></thead>
         <tbody id="uva-body"></tbody>
       </table>
     </div>
@@ -582,7 +582,7 @@ function renderUVA() {
 
   document.getElementById('uva-body').innerHTML = schedule.map(r=>{
     const amort=CAPITAL_UVA-r.capUVAs, pct=amort/CAPITAL_UVA*100;
-    return `<tr><td><span class="row-num">${r.mes}</span></td><td>${fmtU(r.capUVAs)}</td><td>${fmtU(amort)}</td><td>${pct.toFixed(2).replace('.',',')}%</td><td>${fmtU(r.intUVAs)}</td><td>${fmtU(r.amortUVAs)}</td></tr>`;
+    return `<tr><td><span class="row-num">${r.mes}</span></td><td>${fmtU(r.amortUVAs)}</td><td>${fmtU(r.intUVAs)}</td><td>${pct.toFixed(2).replace('.',',')}%</td><td>${fmtU(amort)}</td><td>${fmtU(r.capUVAs)}</td></tr>`;
   }).join('');
 }
 

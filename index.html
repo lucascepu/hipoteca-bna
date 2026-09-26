@@ -155,7 +155,7 @@ td:first-child { text-align: left; }
   <header>
     <div>
       <h1>Tablero Hipoteca BNA</h1>
-      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.0</strong></div>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.3.1</strong></div>
     </div>
     <div style="font-size:.72rem;color:var(--muted);text-align:right">
       Capital original<br>
@@ -240,16 +240,6 @@ td:first-child { text-align: left; }
   <!-- UVA PANEL -->
   <div id="panel-uva" style="display:none;flex-direction:column;gap:1rem">
     <div class="stats" id="uva-stats"></div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem">
-      <div style="font-size:.68rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem">Caída contractual del saldo en UVA</div>
-      <div style="font-size:.75rem;color:var(--txt3);margin-bottom:1rem">Independiente del valor en pesos de la UVA y de la inflación proyectada. Sistema francés · 0,50% mensual.</div>
-      <div id="uva-chart" style="width:100%;height:280px"></div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem">
-      <div style="font-size:.68rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:.35rem">Composición de cada cuota en UVA</div>
-      <div id="uva-comp-note" style="font-size:.75rem;color:var(--txt3);margin-bottom:1rem"></div>
-      <div id="uva-comp-chart" style="width:100%;height:280px"></div>
-    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th style="text-align:left">Cuota</th><th>Saldo UVA</th><th>Capital amortizado</th><th>% amortizado</th><th>Interés UVA</th><th>Amortización UVA</th></tr></thead>
@@ -583,33 +573,16 @@ function renderUVA() {
     {l:'Saldo tras cuota 180',v:fmtU(saldoMitad)+' UVA',s:((1-saldoMitad/CAPITAL_UVA)*100).toFixed(2)+'% amortizado'}
   ].map(m=>`<div class="stat"><div class="sl">${m.l}</div><div class="sv">${m.v}</div><div class="ss">${m.s}</div></div>`).join('');
 
-  const points = [{x:0,y:CAPITAL_UVA}, ...schedule.map(r=>({x:r.mes,y:r.capUVAs}))];
-  const W=1000,H=250,pL=58,pR=18,pT=18,pB=36;
-  const x=v=>pL+(v/MESES)*(W-pL-pR);
-  const y=v=>pT+(1-v/CAPITAL_UVA)*(H-pT-pB);
-  const path=points.map((p,i)=>(i?'L':'M')+x(p.x).toFixed(1)+','+y(p.y).toFixed(1)).join(' ');
-  const grid=[0,20000,40000,60000,80000].map(v=>`<line x1="${pL}" y1="${y(v)}" x2="${W-pR}" y2="${y(v)}" stroke="rgba(255,255,255,.08)"/><text x="${pL-8}" y="${y(v)+4}" text-anchor="end" fill="#6e7f8d" font-size="11">${Math.round(v/1000)}k</text>`).join('');
-  const xt=[0,60,120,180,240,300,360].map(v=>`<text x="${x(v)}" y="${H-8}" text-anchor="middle" fill="#6e7f8d" font-size="11">${v}</text>`).join('');
-  document.getElementById('uva-chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Caída del saldo de deuda en UVA por cuota">${grid}<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>${xt}<text x="${W/2}" y="${H}" text-anchor="middle" fill="#6e7f8d" font-size="11">número de cuota</text></svg>`;
+  const cuota1 = schedule[0];
+  const cruce = schedule.find(r => r.amortUVAs >= r.intUVAs);
+  const info = document.getElementById('uva-stats');
+  info.innerHTML += `<div class="stat"><div class="sl">Cuota 1 · interés</div><div class="sv">${fmtU(cuota1.intUVAs)} UVA</div><div class="ss">${(cuota1.intUVAs/cuota1.cuotaBaseUVAs*100).toFixed(1)}% de la cuota financiera</div></div>
+  <div class="stat"><div class="sl">Cuota 1 · capital</div><div class="sv">${fmtU(cuota1.amortUVAs)} UVA</div><div class="ss">${(cuota1.amortUVAs/cuota1.cuotaBaseUVAs*100).toFixed(1)}% de la cuota financiera</div></div>
+  <div class="stat"><div class="sl">Cruce capital / interés</div><div class="sv">${cruce ? 'Cuota '+cruce.mes : '—'}</div><div class="ss">desde allí se amortiza más capital que interés</div></div>`;
 
-  // Composición de la cuota: interés decreciente + amortización creciente.
-  const maxComp = cuotaUVA;
-  const yc=v=>pT+(1-v/maxComp)*(H-pT-pB);
-  const pathInt=schedule.map((r,i)=>(i?'L':'M')+x(r.mes).toFixed(1)+','+yc(r.intUVAs).toFixed(1)).join(' ');
-  const pathAm=schedule.map((r,i)=>(i?'L':'M')+x(r.mes).toFixed(1)+','+yc(r.amortUVAs).toFixed(1)).join(' ');
-  const cross=schedule.find(r=>r.amortUVAs>=r.intUVAs);
-  const compGrid=[0,.25,.5,.75,1].map(q=>{const v=maxComp*q;return `<line x1="${pL}" y1="${yc(v)}" x2="${W-pR}" y2="${yc(v)}" stroke="rgba(255,255,255,.08)"/><text x="${pL-8}" y="${yc(v)+4}" text-anchor="end" fill="#6e7f8d" font-size="11">${fmtU(v)}</text>`}).join('');
-  const crossMark=cross?`<line x1="${x(cross.mes)}" y1="${pT}" x2="${x(cross.mes)}" y2="${H-pB}" stroke="rgba(255,255,255,.28)" stroke-dasharray="4 4"/><text x="${x(cross.mes)+6}" y="${pT+13}" fill="#a8b3bd" font-size="11">cruce cuota ${cross.mes}</text>`:'';
-  document.getElementById('uva-comp-chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Composición de la cuota en interés y amortización UVA">${compGrid}<path d="${pathInt}" fill="none" stroke="var(--amber)" stroke-width="3"/><path d="${pathAm}" fill="none" stroke="var(--green)" stroke-width="3"/>${crossMark}${xt}<text x="${pL+8}" y="${pT+14}" fill="var(--amber)" font-size="11">Interés UVA</text><text x="${pL+8}" y="${pT+30}" fill="var(--green)" font-size="11">Amortización UVA</text></svg>`;
-  document.getElementById('uva-comp-note').textContent = cross
-    ? `Interés ↓ · Amortización ↑ · La amortización supera al interés desde la cuota ${cross.mes}.`
-    : 'Interés ↓ · Amortización ↑';
-
-  const milestones=[0,12,24,36,60,90,120,180,240,300,360];
-  document.getElementById('uva-body').innerHTML=milestones.map(n=>{
-    if(n===0) return `<tr><td><span class="row-num">0</span></td><td>${fmtU(CAPITAL_UVA)}</td><td>0,00</td><td>0,00%</td><td>—</td><td>—</td></tr>`;
-    const r=schedule[n-1], amort=CAPITAL_UVA-r.capUVAs, pct=amort/CAPITAL_UVA*100;
-    return `<tr><td><span class="row-num">${n}</span></td><td>${fmtU(r.capUVAs)}</td><td>${fmtU(amort)}</td><td>${pct.toFixed(2).replace('.',',')}%</td><td>${fmtU(r.intUVAs)}</td><td>${fmtU(r.amortUVAs)}</td></tr>`;
+  document.getElementById('uva-body').innerHTML = schedule.map(r=>{
+    const amort=CAPITAL_UVA-r.capUVAs, pct=amort/CAPITAL_UVA*100;
+    return `<tr><td><span class="row-num">${r.mes}</span></td><td>${fmtU(r.capUVAs)}</td><td>${fmtU(amort)}</td><td>${pct.toFixed(2).replace('.',',')}%</td><td>${fmtU(r.intUVAs)}</td><td>${fmtU(r.amortUVAs)}</td></tr>`;
   }).join('');
 }
 

@@ -143,9 +143,58 @@ td:first-child { text-align: left; }
 /* ─── Responsive ─── */
 @media (max-width: 600px) {
   .hide-sm { display: none; }
-  .app { padding: 16px; }
-  .config { flex-direction: column; gap: .75rem; }
-  .stats { grid-template-columns: repeat(2, 1fr); }
+  html { font-size: 14px; }
+  body { overflow-x: hidden; }
+  .app { padding: 14px 12px 2.5rem; gap: 1rem; }
+
+  header { align-items: flex-start; gap: .7rem; padding-bottom: .8rem; }
+  header > div:first-child { flex: 1 1 100%; }
+  header > div:last-child { text-align: left !important; }
+  header h1 { font-size: 1.15rem; }
+  header .sub { font-size: .72rem; line-height: 1.45; }
+
+  .config, .cancel-config {
+    flex-direction: column;
+    align-items: stretch;
+    gap: .85rem;
+    padding: 1rem;
+  }
+  .field-grp { width: 100%; }
+  .field-grp[style*="margin-left:auto"] { margin-left: 0 !important; }
+  .num-input,
+  #panel-cancelacion .num-input,
+  #panel-plan .num-input,
+  #panel-plan select.num-input { width: 100% !important; min-width: 0; }
+  .slider-wrap { width: 100%; }
+  .slider-wrap input[type=range] { flex: 1; width: auto; }
+
+  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); gap: .65rem; }
+  .stat { min-width: 0; padding: .8rem .85rem; }
+  .stat .sl { font-size: .64rem; line-height: 1.35; }
+  .stat .sv { font-size: 1.02rem; line-height: 1.2; overflow-wrap: anywhere; }
+  .stat .ss { font-size: .67rem; line-height: 1.45; overflow-wrap: anywhere; }
+
+  .filters { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 1px; }
+  .filters::-webkit-scrollbar { display: none; }
+  .filter-btn { flex: 0 0 auto; padding: .35rem .7rem; }
+  .search-count { display: none; }
+
+  .table-wrap { width: 100%; -webkit-overflow-scrolling: touch; }
+  table { font-size: .76rem; }
+  th, td { padding-left: .55rem !important; padding-right: .55rem !important; }
+
+  #panel-cancelacion .config .field-grp:last-child label { display: none; }
+  #canc-comision-badge { width: 100%; text-align: center; white-space: normal !important; padding: .55rem .75rem !important; }
+  #canc-resultado { gap: .65rem !important; }
+
+  #panel-uva #uva-stats,
+  #panel-plan #plan-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width: 380px) {
+  .stats,
+  #panel-uva #uva-stats,
+  #panel-plan #plan-stats { grid-template-columns: 1fr; }
 }
 
 #panel-uva #uva-stats { grid-template-columns: repeat(4,minmax(0,1fr)); }
@@ -166,7 +215,7 @@ td:first-child { text-align: left; }
   <header>
     <div>
       <h1>Tablero Hipoteca BNA</h1>
-      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.5.0</strong></div>
+      <div class="sub">UVA + 6% TNA · 360 meses · Primer débito 10/11/2026 · <strong style="color:var(--teal)">v1.5.1</strong></div>
     </div>
     <div style="font-size:.72rem;color:var(--muted);text-align:right">
       Capital original<br>

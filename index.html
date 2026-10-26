@@ -288,6 +288,9 @@ const SPREAD    = 0.06;
 const MESES     = 360;
 const TEM       = Math.pow(1 + SPREAD, 1/12) - 1;
 const PRIMERA   = new Date(2026, 10, 10); // 10/11/2026
+const FIRMA     = new Date(2026, 8, 28);  // 28/09/2026 — otorgamiento
+// BNA usa año comercial 360 días para interés proporcional del primer período
+const DIAS_PRIMER_PERIODO = Math.round((PRIMERA - FIRMA) / 86400000); // 43 días
 const STORAGE_PAID   = 'hipoteca_cuotas_v1_paid';
 const STORAGE_SEGS   = 'hipoteca_cuotas_v1_segs';
 const STORAGE_UVAS   = 'hipoteca_cuotas_v1_uvas';
@@ -375,11 +378,17 @@ function buildSchedule(infMensual, uvaActual) {
     const uvaHoy    = uvaActual * uvaIdx;
     // Override UVA real if user set it
     const uvaReal   = uvasMap.has(i) ? uvasMap.get(i) : uvaHoy;
-    const intUVAs   = capUVAs * TEM;
-    const amortUVAs = cuotaBaseUVAs - intUVAs;
+    // Cuota 1 (i=0): BNA calcula interés proporcional (TNA/360 × días entre firma y 1er vto)
+    // La amortización es la misma que en sistema francés normal (cuota_base - int_mensual_normal)
+    const intMensualNormal = capUVAs * TEM;
+    const intUVAs   = i === 0
+      ? capUVAs * (SPREAD / 360) * DIAS_PRIMER_PERIODO
+      : intMensualNormal;
+    const amortUVAs = cuotaBaseUVAs - intMensualNormal; // siempre amort francesa
     capUVAs        -= amortUVAs;
     if (i > 0) capUVAs *= (1 + infMensual);
-    const cuotaARS  = cuotaBaseUVAs * uvaReal;
+    const cuotaTotalUVAs = amortUVAs + intUVAs; // para i=0: amort_normal + int_proporcional
+    const cuotaARS  = cuotaTotalUVAs * uvaReal;
     const intARS    = intUVAs * uvaReal;
     const amortARS  = amortUVAs * uvaReal;
     const capARS    = capUVAs * uvaReal;

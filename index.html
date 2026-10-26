@@ -283,10 +283,12 @@ td:first-child { text-align: left; }
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CAPITAL      = 172124984.96;
+const UVA_CUOTA1   = 2185.4448;      // UVA al 10/11/2026 (implícito en la cuota 1 que muestra el BNA)
+const CAPITAL_UVAS = 80670.86;      // capital en UVAs fijado en el contrato (no depende del UVA de hoy)
 const TC_CONTRATO  = 1545;           // TC ARS/USD al cierre del contrato (fijo)
 const SPREAD    = 0.06;
 const MESES     = 360;
-const TEM       = Math.pow(1 + SPREAD, 1/12) - 1;
+const TEM       = SPREAD / 12; // BNA: tasa mensual proporcional TNA/12 (verificado contra amortización 80,31 UVAs)
 const PRIMERA   = new Date(2026, 10, 10); // 10/11/2026
 const FIRMA     = new Date(2026, 8, 28);  // 28/09/2026 — otorgamiento
 // BNA usa año comercial 360 días para interés proporcional del primer período
@@ -369,15 +371,16 @@ let uvasMap  = loadMap(STORAGE_UVAS);
 // ─── Schedule builder ─────────────────────────────────────────────────────────
 let schedule = [];
 function buildSchedule(infMensual, uvaActual) {
-  const cuotaBaseUVAs = CAPITAL / uvaActual * TEM / (1 - Math.pow(1+TEM, -MESES));
-  let capUVAs = CAPITAL / uvaActual;
+  const cuotaBaseUVAs = CAPITAL_UVAS * TEM / (1 - Math.pow(1+TEM, -MESES));
+  let capUVAs = CAPITAL_UVAS;
   let uvaIdx  = 1.0;
   schedule = [];
   for (let i = 0; i < MESES; i++) {
     if (i > 0) uvaIdx *= (1 + infMensual);
     const uvaHoy    = uvaActual * uvaIdx;
     // Override UVA real if user set it
-    const uvaReal   = uvasMap.has(i) ? uvasMap.get(i) : uvaHoy;
+    // Cuota 1: UVA del 10/11/2026 (ya publicado por BCRA; implícito en el cálculo del BNA del 26/10)
+    const uvaReal   = uvasMap.has(i) ? uvasMap.get(i) : (i === 0 ? UVA_CUOTA1 : uvaHoy);
     // Cuota 1 (i=0): BNA calcula interés proporcional (TNA/360 × días entre firma y 1er vto)
     // La amortización es la misma que en sistema francés normal (cuota_base - int_mensual_normal)
     const intMensualNormal = capUVAs * TEM;
@@ -385,8 +388,7 @@ function buildSchedule(infMensual, uvaActual) {
       ? capUVAs * (SPREAD / 360) * DIAS_PRIMER_PERIODO
       : intMensualNormal;
     const amortUVAs = cuotaBaseUVAs - intMensualNormal; // siempre amort francesa
-    capUVAs        -= amortUVAs;
-    if (i > 0) capUVAs *= (1 + infMensual);
+    capUVAs        -= amortUVAs; // el saldo en UVAs no se ajusta por inflación: ya está en UVAs
     const cuotaTotalUVAs = amortUVAs + intUVAs; // para i=0: amort_normal + int_proporcional
     const cuotaARS  = cuotaTotalUVAs * uvaReal;
     const intARS    = intUVAs * uvaReal;
@@ -465,7 +467,7 @@ function calcCancelacion() {
   const totalPagar = montoARS + comision;
 
   // ── Cuota base en UVAs (constante, sistema francés) ──
-  const capInicialUVAs = CAPITAL / uvaActual;          // 80.670,86 UVAs
+  const capInicialUVAs = CAPITAL_UVAS;                 // 80.670,86 UVAs (fijo del contrato)
   const cuotaBaseUVAs  = capInicialUVAs * TEM / (1 - Math.pow(1 + TEM, -MESES));
 
   // ── Saldo en UVAs inmediatamente antes de la cuota elegida ──

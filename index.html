@@ -154,6 +154,13 @@ td:first-child { text-align: left; }
   thead th:last-child, td:last-child { padding-right: .6rem; }
   .fecha-cell { font-size: .74rem; }
   .badge-fer { display: none; }  /* el punto ámbar ya indica feriado */
+  /* columnas de ancho fijo y contenido centrado */
+  table { table-layout: fixed; }
+  thead th, td { text-align: center; }
+  thead th:nth-child(1), td:nth-child(1) { width: 20%; text-align: left; padding-left: .9rem; }
+  thead th:nth-child(2), td:nth-child(2) { width: 29%; }
+  thead th:nth-child(6), td:nth-child(6) { width: 21%; }
+  thead th:nth-child(7), td:nth-child(7) { width: 30%; padding-right: .5rem; }
 }
 </style>
 </head>

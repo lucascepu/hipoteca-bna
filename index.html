@@ -126,6 +126,7 @@ td:first-child { text-align: left; }
 .detail-row .dv { font-size: .9rem; font-weight: 500; }
 .detail-divider { height: 1px; background: rgba(255,255,255,.07); }
 .detail-section { font-size: .67rem; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; padding-bottom: .25rem; border-bottom: 1px solid rgba(255,255,255,.07); opacity: .85; }
+.detail-body > .detail-section:not(:first-child) { margin-top: .6rem; }
 .detail-input-row { display: flex; flex-direction: column; gap: .4rem; }
 .detail-input-row label { font-size: .72rem; color: var(--txt3); }
 .detail-note { font-size: .75rem; color: var(--muted); line-height: 1.5; }
@@ -144,7 +145,29 @@ td:first-child { text-align: left; }
 @media (max-width: 600px) {
   .hide-sm { display: none; }
   .app { padding: 16px; }
-  .config { flex-direction: column; gap: .75rem; }
+  header { flex-direction: column; align-items: flex-start; gap: .6rem; }
+  header > div:last-child { text-align: left !important; }
+  .config { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem .75rem; align-items: end; padding: .9rem; }
+  .config .field-grp { margin-left: 0 !important; min-width: 0; }
+  .config .field-grp:first-child, .config .field-grp:last-child { grid-column: 1 / -1; }
+  .config .num-input { width: 100% !important; height: 2.5rem; }
+  .config .field-grp label { min-height: 1.9em; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 .35rem; line-height: 1.25; }
+  #tc-status { display: block; width: 100%; }
+  .config .field-grp > div[style*="flex"] { align-items: stretch !important; }
+  .config .field-grp > div[style*="flex"] button { width: 2.8rem; flex-shrink: 0; height: 2.5rem; padding: 0 !important; }
+  #panel-cancelacion .config .field-grp:last-child { grid-column: auto; }
+  .stats .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .slider-wrap input[type=range] { flex: 1; width: auto; }
+  .config button { width: 100%; padding: .5rem .85rem !important; }
+  #canc-comision-badge { white-space: normal !important; text-align: center; }
+  /* pestañas y filtros parejos */
+  .filters { gap: 0; }
+  .filters[style] .filter-btn { flex: 1; text-align: center; padding: .5rem .25rem; }
+  #panel-cuotas .filters { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem .5rem; }
+  #panel-cuotas .filter-btn { text-align: center; border: 1px solid var(--border); border-radius: 6px; padding: .4rem .25rem; }
+  #panel-cuotas .filter-btn.active { border-color: var(--accent); }
+  #panel-cuotas .filter-btn.warn-btn.active { border-color: var(--amber); }
+  .search-count { grid-column: 1 / -1; margin: 0; text-align: center; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   /* tabla compacta: todo el detalle visible sin scroll horizontal */
   table { font-size: .78rem; }
@@ -672,25 +695,21 @@ function openDetail(idx) {
     <div class="detail-row"><span class="dk">Débito efectivo</span><span class="dv n-cell">${fmtDate(r.debito)}</span></div>
 
     <div class="detail-section">Cuota</div>
-    <div class="detail-row"><span class="dk">Cuota base (UVAs)</span><span class="dv n-cell">${fmtU(r.cuotaBaseUVAs)}</span></div>
-    <div class="detail-row"><span class="dk">UVA proyectada</span><span class="dv n-cell">$${fmtU(r.uvaHoy)}</span></div>
-    <div class="detail-row"><span class="dk">UVA real (si ingresada)</span><span class="dv n-cell">${uvasMap.has(idx) ? '$'+fmtU(r.uvaReal) : '—'}</span></div>
-    <div class="detail-row"><span class="dk">Cuota en ARS</span><span class="dv n-cell" style="color:var(--accent)">${fmt(r.cuotaARS)}</span></div>
+    <div class="detail-row"><span class="dk">Cuota en UVAs</span><span class="dv n-cell">${fmtU(r.cuotaARS / r.uvaReal)}</span></div>
+    <div class="detail-row"><span class="dk">${uvasMap.has(idx) ? 'UVA real ingresada' : (idx === 0 ? 'UVA al 10/11 (BNA)' : 'UVA proyectada')}</span><span class="dv n-cell">$${fmtU(r.uvaReal)}</span></div>
+    <div class="detail-row"><span class="dk">Cuota en ARS (débito)</span><span class="dv n-cell" style="font-size:1.05rem;color:var(--accent2)">${fmt(r.cuotaARS)}</span></div>
 
     <div class="detail-section">Composición</div>
     <div class="detail-row"><span class="dk">Interés</span><span class="dv n-cell">${fmt(r.intARS)}</span></div>
     <div class="detail-row"><span class="dk">Amortización capital</span><span class="dv n-cell">${fmt(r.amortARS)}</span></div>
     <div class="detail-row"><span class="dk">Capital restante</span><span class="dv n-cell">${fmt(r.capARS)}</span></div>
 
-    <div class="detail-section">Total</div>
-    <div class="detail-row"><span class="dk">Total débito</span><span class="dv n-cell" style="font-size:1.05rem;color:var(--accent2)">${fmt(r.cuotaARS)}</span></div>
-
     <div class="detail-divider"></div>
 
     <div class="detail-section">Ajustes manuales</div>
     <div class="detail-input-row">
       <label>UVA real del mes ($/UVA) — deja vacío para usar proyección</label>
-      <input class="num-input" style="width:100%" type="number" id="inp-uva-real" value="${uvaVal}" placeholder="${fmtU(r.uvaHoy)}" step="0.01">
+      <input class="num-input" style="width:100%" type="number" id="inp-uva-real" value="${uvaVal}" placeholder="${fmtU(r.uvaReal)}" step="0.01">
     </div>
     <button onclick="saveDetailInputs(${idx})" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:.8rem;padding:.5rem 1rem;border-radius:7px;cursor:pointer;width:100%">Guardar ajustes de esta cuota</button>
 

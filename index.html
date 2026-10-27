@@ -146,6 +146,14 @@ td:first-child { text-align: left; }
   .app { padding: 16px; }
   .config { flex-direction: column; gap: .75rem; }
   .stats { grid-template-columns: repeat(2, 1fr); }
+  /* tabla compacta: todo el detalle visible sin scroll horizontal */
+  table { font-size: .78rem; }
+  thead th { padding: .5rem .35rem; font-size: .6rem; letter-spacing: .04em; }
+  td { padding: .55rem .35rem; }
+  thead th:first-child, td:first-child { padding-left: .6rem; }
+  thead th:last-child, td:last-child { padding-right: .6rem; }
+  .fecha-cell { font-size: .74rem; }
+  .badge-fer { display: none; }  /* el punto ámbar ya indica feriado */
 }
 </style>
 </head>
@@ -228,8 +236,8 @@ td:first-child { text-align: left; }
           <th class="hide-sm">Capital rest.</th>
           <th class="hide-sm">Interés</th>
           <th class="hide-sm">Amortiz.</th>
-          <th>Cuota UVA</th>
-          <th>Total débito</th>
+          <th>UVAs</th>
+          <th>Cuota $</th>
         </tr>
       </thead>
       <tbody id="cuota-body"></tbody>
@@ -584,7 +592,7 @@ function renderStats() {
   document.getElementById('progress-pct').textContent  = pct.toFixed(1) + '%';
 
   document.getElementById('stats').innerHTML = [
-    { l:'Cuota inicial (UVA)',  v: fmt(cuota0.cuotaARS),           s:`${fmtU(cuota0.cuotaBaseUVAs)} UVAs` },
+    { l:'Cuota 1',              v: fmt(cuota0.cuotaARS),           s:`${fmtU(cuota0.cuotaARS / cuota0.uvaReal)} UVAs · luego ${fmtU(cuota0.cuotaBaseUVAs)}` },
     { l:'Pagadas / Total',      v: `${paidCount} / ${MESES}`,      s:`${MESES-paidCount} pendientes` },
     { l:'Saldo estimado',       v: nextRow ? fmt(nextRow.capARS) : '—', s:'capital restante en ARS' },
     { l:'Próxima cuota',        v: nextRow ? fmt(nextRow.cuotaARS) : '¡Listo!', s: nextRow ? fmtDate(nextRow.debito) : 'Préstamo cancelado' },
@@ -631,8 +639,8 @@ function renderTable() {
       <td class="ars hide-sm">${fmt(r.capARS)}</td>
       <td class="ars hide-sm">${fmt(r.intARS)}</td>
       <td class="ars hide-sm">${fmt(r.amortARS)}</td>
-      <td>${cuotaCell}</td>
-      <td class="ars" style="font-weight:500">${fmt(r.cuotaARS)}</td>
+      <td class="ars">${fmtU(r.cuotaARS / r.uvaReal)}</td>
+      <td style="font-weight:500">${cuotaCell}</td>
     </tr>`;
   }).join('');
 }

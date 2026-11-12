@@ -406,6 +406,12 @@ let paidSet  = loadSet(STORAGE_PAID);
 let segsMap  = loadMap(STORAGE_SEGS);
 let uvasMap  = loadMap(STORAGE_UVAS);
 
+// Pagos confirmados con el débito real de la cuenta (valen en todos los dispositivos).
+// Clave = índice de cuota (0 = cuota 1). El UVA de esa cuota se despeja del monto debitado.
+const PAGOS_REALES = {
+  0: { fecha: new Date(2026, 10, 12), monto: 1439027.99 }, // CA $ 00430850761278 · comprobante 41404492 · 12/11/2026 01:14
+};
+
 // ─── Schedule builder ─────────────────────────────────────────────────────────
 let schedule = [];
 function buildSchedule(infMensual, uvaActual) {
@@ -418,7 +424,8 @@ function buildSchedule(infMensual, uvaActual) {
     const uvaHoy    = uvaActual * uvaIdx;
     // Override UVA real if user set it
     // Cuota 1: UVA del 10/11/2026 (ya publicado por BCRA; implícito en el cálculo del BNA del 26/10)
-    const uvaReal   = uvasMap.has(i) ? uvasMap.get(i) : (i === 0 ? UVA_CUOTA1 : uvaHoy);
+    const pr        = PAGOS_REALES[i];
+    let   uvaReal   = uvasMap.has(i) ? uvasMap.get(i) : (i === 0 ? UVA_CUOTA1 : uvaHoy);
     // Cuota 1 (i=0): BNA calcula interés proporcional (TNA/360 × días entre firma y 1er vto)
     // La amortización es la misma que en sistema francés normal (cuota_base - int_mensual_normal)
     const intMensualNormal = capUVAs * TEM;
@@ -428,13 +435,14 @@ function buildSchedule(infMensual, uvaActual) {
     const amortUVAs = cuotaBaseUVAs - intMensualNormal; // siempre amort francesa
     capUVAs        -= amortUVAs; // el saldo en UVAs no se ajusta por inflación: ya está en UVAs
     const cuotaTotalUVAs = amortUVAs + intUVAs; // para i=0: amort_normal + int_proporcional
+    if (pr) uvaReal = pr.monto / cuotaTotalUVAs; // UVA implícito del débito real
     const cuotaARS  = cuotaTotalUVAs * uvaReal;
     const intARS    = intUVAs * uvaReal;
     const amortARS  = amortUVAs * uvaReal;
     const capARS    = capUVAs * uvaReal;
     const d10       = dia10(i);
-    const debito    = fechaDebito(i);
-    const esFer     = debito.getTime() !== d10.getTime();
+    const debito    = pr ? pr.fecha : fechaDebito(i);
+    const esFer     = !pr && debito.getTime() !== d10.getTime();
     const seguro    = segsMap.has(i) ? segsMap.get(i) : 0;
     schedule.push({
       idx: i,
@@ -445,7 +453,8 @@ function buildSchedule(infMensual, uvaActual) {
       cuotaARS, intARS, amortARS, capARS,
       seguro,
       total: cuotaARS + seguro,
-      paid: paidSet.has(i),
+      paid: paidSet.has(i) || !!pr,
+      pagoReal: !!pr,
     });
   }
 }
@@ -684,7 +693,9 @@ function openDetail(idx) {
   const ferHtml = r.esFer ? `<div class="feriado-box">⚠️ El día 10 de este mes (${fmtDate(r.d10)}) cae en feriado o fin de semana. El débito se corre al <strong>${fmtDate(r.debito)}</strong>.</div>` : '';
   const segVal  = segsMap.has(idx) ? segsMap.get(idx) : '';
   const uvaVal  = uvasMap.has(idx) ? uvasMap.get(idx) : '';
-  const paidBtn = r.paid
+  const paidBtn = r.pagoReal
+    ? `<div class="mark-paid-btn paid-state" style="text-align:center;cursor:default">✓ Pagada · débito confirmado</div>`
+    : r.paid
     ? `<button class="mark-paid-btn paid-state" onclick="togglePaid(${idx})">✓ Marcar como pendiente</button>`
     : `<button class="mark-paid-btn unpaid" onclick="togglePaid(${idx})">Marcar como pagada</button>`;
 
@@ -692,11 +703,11 @@ function openDetail(idx) {
     ${ferHtml}
     <div class="detail-section">Fechas</div>
     <div class="detail-row"><span class="dk">Día 10 del mes</span><span class="dv n-cell">${fmtDate(r.d10)}</span></div>
-    <div class="detail-row"><span class="dk">Débito efectivo</span><span class="dv n-cell">${fmtDate(r.debito)}</span></div>
+    <div class="detail-row"><span class="dk">${r.pagoReal ? 'Débito real (cuenta)' : 'Débito efectivo'}</span><span class="dv n-cell">${fmtDate(r.debito)}</span></div>
 
     <div class="detail-section">Cuota</div>
     <div class="detail-row"><span class="dk">Cuota en UVAs</span><span class="dv n-cell">${fmtU(r.cuotaARS / r.uvaReal)}</span></div>
-    <div class="detail-row"><span class="dk">${uvasMap.has(idx) ? 'UVA real ingresada' : (idx === 0 ? 'UVA al 10/11 (BNA)' : 'UVA proyectada')}</span><span class="dv n-cell">$${fmtU(r.uvaReal)}</span></div>
+    <div class="detail-row"><span class="dk">${r.pagoReal ? 'UVA implícito del débito' : uvasMap.has(idx) ? 'UVA real ingresada' : (idx === 0 ? 'UVA al 10/11 (BNA)' : 'UVA proyectada')}</span><span class="dv n-cell">$${fmtU(r.uvaReal)}</span></div>
     <div class="detail-row"><span class="dk">Cuota en ARS (débito)</span><span class="dv n-cell" style="font-size:1.05rem;color:var(--accent2)">${fmt(r.cuotaARS)}</span></div>
 
     <div class="detail-section">Composición</div>
@@ -739,6 +750,7 @@ function saveDetailInputs(idx) {
 }
 
 function togglePaid(idx) {
+  if (PAGOS_REALES[idx]) return; // pago confirmado con débito real
   if (paidSet.has(idx)) { paidSet.delete(idx); } else { paidSet.add(idx); }
   saveSet(STORAGE_PAID, paidSet);
   schedule[idx].paid = paidSet.has(idx);
@@ -766,7 +778,7 @@ function rebuild() {
   saveConfig({ inf: inf*100, uva, tc });
   buildSchedule(inf, uva);
   // Apply paid set
-  schedule.forEach(r => { r.paid = paidSet.has(r.idx); });
+  schedule.forEach(r => { r.paid = paidSet.has(r.idx) || !!PAGOS_REALES[r.idx]; });
   renderStats();
   renderTable();
   renderUSD();

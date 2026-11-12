@@ -794,29 +794,44 @@ function renderUSD() {
 }
 
 // ─── TC en vivo desde seguimiento-fx ─────────────────────────────────────────
+const STORAGE_TC = 'hipoteca_cuotas_v1_tc';
 function fetchTC() {
   const statusEl = document.getElementById('tc-status');
-  statusEl.textContent = 'actualizando…';
-  statusEl.style.color = 'var(--txt3)';
+  const setStatus = (txt, color) => { statusEl.textContent = txt; statusEl.style.color = color; };
+  const fmtTs = ms => new Date(ms).toLocaleString('es-AR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+  // Si el servicio no da precio, se usa el último dato bueno guardado (con su fecha)
+  const usarUltimo = motivo => {
+    let last = null;
+    try { last = JSON.parse(localStorage.getItem(STORAGE_TC) || 'null'); } catch {}
+    if (last && last.price > 0) {
+      document.getElementById('tc-usd').value = Math.round(last.price);
+      setStatus(`${motivo} · último dato ${fmtTs(last.ts)}`, 'var(--warn)');
+      rebuild();
+    } else {
+      setStatus(motivo, 'var(--red)');
+    }
+  };
+  setStatus('actualizando…', 'var(--txt3)');
   fetch('https://seguimiento-fx.vercel.app/api/dolar', {cache:'no-store'})
-    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(data => {
-      const price = data?.mayorista?.price;
-      if (price && price > 0) {
+      const price = parseFloat(data?.mayorista?.price);
+      if (price > 0) {
+        const ts = data?.mayorista?.timestamp;              // segundos (epoch)
+        const tsMs = ts ? ts * 1000 : Date.now();
         document.getElementById('tc-usd').value = Math.round(price);
-        const ts = data?.mayorista?.timestamp;
-        const hora = ts ? new Date(ts*1000).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
-        statusEl.textContent = hora ? `en vivo · ${hora}` : 'en vivo';
-        statusEl.style.color = 'var(--green)';
+        try { localStorage.setItem(STORAGE_TC, JSON.stringify({price, ts: tsMs})); } catch {}
+        const hora = ts ? new Date(tsMs).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
+        setStatus(hora ? `en vivo · ${hora}` : 'en vivo', 'var(--green)');
         rebuild();
       } else {
-        statusEl.textContent = 'sin dato';
-        statusEl.style.color = 'var(--red)';
+        console.warn('TC: la API respondió sin precio mayorista', data);
+        usarUltimo('sin precio del servicio');
       }
     })
-    .catch(() => {
-      statusEl.textContent = 'error de conexión';
-      statusEl.style.color = 'var(--red)';
+    .catch(err => {
+      console.warn('TC: falló la consulta', err);
+      usarUltimo(String(err.message || '').startsWith('HTTP') ? `servicio caído (${err.message})` : 'sin conexión');
     });
 }
 

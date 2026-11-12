@@ -212,7 +212,7 @@ td:first-child { text-align: left; }
     </div>
     <div class="field-grp">
       <label>UVA actual ($/UVA)</label>
-      <input class="num-input" type="number" id="uva-actual" value="2168.29" step="0.01" min="1" placeholder="2168.29">
+      <input class="num-input" type="number" id="uva-actual" value="2193.45" step="0.01" min="1" placeholder="2193.45">
     </div>
     <div class="field-grp">
       <label>TC hoy — SIOPEL <span id="tc-status" style="font-weight:400;color:var(--txt3);font-size:.65rem"></span></label>
@@ -321,6 +321,8 @@ td:first-child { text-align: left; }
 <script>
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CAPITAL      = 172124984.96;
+// Último UVA oficial cargado (BCRA). Si cambia la fecha, pisa el valor guardado en el navegador.
+const UVA_REF_FECHA = '2026-11-12', UVA_REF_VALOR = 2193.45;
 const UVA_CUOTA1   = 2185.4448;      // UVA al 10/11/2026 (implícito en la cuota 1 que muestra el BNA)
 const CAPITAL_UVAS = 80670.86;      // capital en UVAs fijado en el contrato (no depende del UVA de hoy)
 const TC_CONTRATO  = 1545;           // TC ARS/USD al cierre del contrato (fijo)
@@ -775,7 +777,7 @@ function rebuild() {
   document.getElementById('inf-val').textContent = (inf*100).toFixed(1).replace('.',',') + '%';
   // Persist config
   const tc = parseFloat(document.getElementById('tc-usd').value) || 1200;
-  saveConfig({ inf: inf*100, uva, tc });
+  saveConfig({ inf: inf*100, uva, tc, uvaRef: UVA_REF_FECHA });
   buildSchedule(inf, uva);
   // Apply paid set
   schedule.forEach(r => { r.paid = paidSet.has(r.idx) || !!PAGOS_REALES[r.idx]; });
@@ -827,7 +829,7 @@ document.getElementById('tc-usd').addEventListener('change', rebuild);
 (function init() {
   const cfg = loadConfig();
   if (cfg.inf)    { document.getElementById('inf-slider').value   = cfg.inf; }
-  if (cfg.uva)    { document.getElementById('uva-actual').value   = cfg.uva; }
+  if (cfg.uva && cfg.uvaRef === UVA_REF_FECHA) { document.getElementById('uva-actual').value = cfg.uva; } // valor editado a mano sobre la misma referencia
   if (cfg.tc)     { document.getElementById('tc-usd').value        = cfg.tc; }
   rebuild();
   // Buscar TC en vivo al cargar

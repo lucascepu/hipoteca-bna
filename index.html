@@ -813,16 +813,29 @@ function fetchTC() {
   };
   setStatus('actualizando…', 'var(--txt3)');
   fetch('https://seguimiento-fx.vercel.app/api/dolar', {cache:'no-store'})
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(async r => {
+      let data = null; try { data = await r.json(); } catch {}
+      if (!r.ok) { const e = new Error('HTTP ' + r.status); e.detalle = data?.error; throw e; }
+      return data;
+    })
     .then(data => {
-      const price = parseFloat(data?.mayorista?.price);
+      // Formato actual: { mayorista: 1541.4, fecha:'2026-11-13', plazo:'000', fuente:'MAE' }
+      // Formato anterior: { mayorista: { price, timestamp } } (se sigue aceptando)
+      const m = data?.mayorista;
+      const price = parseFloat(m && typeof m === 'object' ? m.price : m);
       if (price > 0) {
-        const ts = data?.mayorista?.timestamp;              // segundos (epoch)
-        const tsMs = ts ? ts * 1000 : Date.now();
+        let tsMs = Date.now(), etiqueta = '';
+        if (m && typeof m === 'object' && m.timestamp) {
+          tsMs = m.timestamp * 1000;
+          etiqueta = new Date(tsMs).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+        } else if (data?.fecha) {
+          const [y, mo, d] = data.fecha.split('-').map(Number);
+          tsMs = new Date(y, mo-1, d, 12).getTime();
+          etiqueta = `${String(d).padStart(2,'0')}/${String(mo).padStart(2,'0')}`;
+        }
         document.getElementById('tc-usd').value = Math.round(price);
         try { localStorage.setItem(STORAGE_TC, JSON.stringify({price, ts: tsMs})); } catch {}
-        const hora = ts ? new Date(tsMs).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
-        setStatus(hora ? `en vivo · ${hora}` : 'en vivo', 'var(--green)');
+        setStatus(`${data?.fuente || 'en vivo'}${etiqueta ? ' · ' + etiqueta : ''}`, 'var(--green)');
         rebuild();
       } else {
         console.warn('TC: la API respondió sin precio mayorista', data);
@@ -831,7 +844,8 @@ function fetchTC() {
     })
     .catch(err => {
       console.warn('TC: falló la consulta', err);
-      usarUltimo(String(err.message || '').startsWith('HTTP') ? `servicio caído (${err.message})` : 'sin conexión');
+      const http = String(err.message || '').startsWith('HTTP');
+      usarUltimo(http ? (err.message === 'HTTP 404' ? `sin dato hoy (${err.detalle || 'MAE'})` : `servicio con error (${err.message}${err.detalle ? ': ' + err.detalle : ''})`) : 'sin conexión');
     });
 }
 
